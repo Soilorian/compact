@@ -29,16 +29,18 @@ class Analyzer:
         incorrect = 0
         pending = set()
 
-        data = self.dataloader.load()
-        logger.info(f"Starting analysis on {len(data)} addresses")
+        self.dataloader.load()
+        dataSize = len(self.dataloader)
+        logger.info(f"Starting analysis on {dataSize} data")
 
-        for idx, addr in enumerate(data):
+        for idx in range(dataSize):
+            addr = self.dataloader[idx]
             preds = self.algorithm.progress(addr)
             for p in preds:
                 pending.add(p)
 
-            if idx + 1 < len(data):
-                next_addr = data[idx + 1]
+            if idx + 1 < dataSize:
+                next_addr = self.dataloader[idx + 1]
                 if next_addr in pending:
                     correct += 1
                     pending.remove(next_addr)
@@ -50,5 +52,3 @@ class Analyzer:
         self.algorithm.close()
         logger.info(f"Correct predictions: {correct}")
         logger.info(f"Incorrect predictions: {incorrect}")
-        print(f"Correct Predictions: {correct}")
-        print(f"Incorrect Predictions: {incorrect}")
