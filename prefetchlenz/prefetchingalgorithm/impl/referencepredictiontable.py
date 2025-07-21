@@ -1,61 +1,104 @@
 import logging
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List
 
+from prefetchlenz.config import RptConfig
+from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
 from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 logger = logging.getLogger("prefetchLenz.referencepredictiontable")
 
 
-class RPTAlgorithm(PrefetchAlgorithm):
+class RptState(Enum):
+    Init = 0
+    Transient = 1
+    Unstable = 2
+    Steady = 3
+
+
+@dataclass
+class RptRow:
+    stride: int
+    address: int
+    state: RptState
+
+
+class RptAlgorithm(PrefetchAlgorithm):
     """
     Reference Prediction Table (RPT) stride-based prefetcher.
 
     Tracks load PC → last_addr, stride, and a 2-bit FSM to validate strides.
     """
 
+    table: Dict[int, RptRow]
+
     def __init__(self):
         """Create empty RPT."""
         self.table = {}
-        self.last_pc = 0
 
     def init(self):
         """Clear the table before a new run."""
         logger.debug("RPT init: clearing table")
         self.table.clear()
-        self.last_pc = 0
 
-    def progress(self, address: int):
+    def progress(self, access: MemoryAccess) -> List[int]:
         """
         Feed next access and get prefetch addresses.
 
         Args:
-            address (int): Current accessed address.
+            access (MemoryAccess): Current access block.
 
         Returns:
             List[int]: Addresses to prefetch (possibly empty).
+            :param access:
         """
-        pc = self.last_pc
-        self.last_pc += 1
-        prediction = []
+        pc = access.pc
+        address = access.address
+        predictions = []
 
         if pc in self.table:
-            last_addr, stride, state = self.table[pc]
+            tbl = self.table[pc]
+            last_addr = tbl.address
+            stride = tbl.stride
+            state = tbl.state
             new_stride = address - last_addr
+            new_addr = address + new_stride
 
-            if new_stride == stride:
-                # advance FSM (0→1→2→steady)
-                state = min(state + 1, 2)
-                if state == 2:
-                    prediction = [address + stride]
-                    logger.debug(f"RPT predict {prediction} for PC {pc}")
-            else:
-                state = 0
+            if state == RptState.Init:
+                state = RptState.Transient
 
-            self.table[pc] = (address, new_stride, state)
+            elif state == RptState.Transient:
+                if stride == new_stride:
+                    if RptConfig.prefetch_on_transient:
+                        predictions.append(address)
+                    state = RptState.Steady
+
+                else:
+                    state = RptState.Unstable
+
+            elif state == RptState.Steady:
+                if stride == new_stride:
+                    predictions.append(address)
+                    state = RptState.Steady
+
+                else:
+                    state = RptState.Init
+
+            elif state == RptState.Unstable:
+                if stride == new_stride:
+                    if RptConfig.prefetch_on_unstable:
+                        predictions.append(address)
+                    state = RptState.Transient
+
+                else:
+                    state = RptState.Unstable
+
+            self.table[pc] = RptRow(address=address, stride=new_stride, state=state)
         else:
-            # first-seen, no prediction
-            self.table[pc] = (address, 0, 0)
+            self.table[pc] = RptRow(address=address, stride=-1, state=RptState.Init)
 
-        return prediction
+        return predictions
 
     def close(self):
         """Clear the table after run."""

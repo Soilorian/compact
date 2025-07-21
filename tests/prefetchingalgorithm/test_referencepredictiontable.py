@@ -1,15 +1,15 @@
-from prefetchlenz.prefetchingalgorithm.impl.referencepredictiontable import RPTAlgorithm
+from prefetchlenz.prefetchingalgorithm.impl.referencepredictiontable import RptAlgorithm
 
 
 def test_rpt_initial_no_predict():
-    rpt = RPTAlgorithm()
+    rpt = RptAlgorithm()
     rpt.init()
     # first encounter → no prediction
     assert rpt.progress(100) == []
 
 
 def test_rpt_predicts_stride():
-    rpt = RPTAlgorithm()
+    rpt = RptAlgorithm()
     rpt.init()
     # feed same stride three times to reach steady
     rpt.progress(100)  # sets last_addr=100
