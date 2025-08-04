@@ -12,123 +12,164 @@ logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.triage")
 @dataclass
 class TriagePrefetcherMetaData:
     """
-    Represents metadata for a single memory address in the Triage prefetcher.
-
-    Attributes:
-        neighbor (int): The next correlated address.
-        confidence (int): A 1-bit confidence counter (0 or 1).
+    Metadata for a single address:
+      neighbor    – correlated next address
+      confidence  – 1-bit counter to avoid thrash
+      score       – usefulness count for Hawkeye replacement
     """
 
     neighbor: int
     confidence: int = 1
+    score: int = 0
 
 
 class TriagePrefetcher(PrefetchAlgorithm):
     """
-    Triage Prefetcher: A temporal prefetcher that identifies PC-localized address
-    correlations and stores metadata entirely on-chip.
-
-    This prefetcher uses a dynamic table indexed by the last accessed address per PC
-    and predicts future accesses based on learned address correlations.
+    Triage Prefetcher with on-chip metadata,
+    Hawkeye-style replacement, and dynamic sizing.
     """
 
-    def __init__(self):
-        """
-        Initialize the Triage prefetcher state.
-        """
-        self.size: Optional[Size] = None
+    def __init__(
+        self,
+        init_size: Size = Size.from_kb(512),
+        min_size: Size = Size.from_kb(128),
+        max_size: Size = Size.from_mb(2),
+        resize_epoch: int = 50_000,
+        grow_thresh: float = 0.1,
+        shrink_thresh: float = 0.05,
+    ):
+        self.size = init_size
+        self.min_size = min_size
+        self.max_size = max_size
+
+        # table: {address → metadata}
         self.table: dict[int, TriagePrefetcherMetaData] = {}
+
+        # last access per PC (for training)
         self.last_access_per_pc: dict[int, int] = {}
+
+        # stats for dynamic resizing
+        self.meta_accesses = 0
+        self.useful_prefetches = 0
+        self.resize_epoch = resize_epoch
+        self.grow_thresh = grow_thresh
+        self.shrink_thresh = shrink_thresh
+
         logger.debug("TriagePrefetcher instantiated")
 
-    def init(self, size=Size.from_kb(512)):
+    def init(self, size: Optional[Size] = None):
         """
-        Initialize internal table and metadata size.
+        Initialize or reset internal state.
 
         Args:
-            size (Size): The maximum size (in bytes) of the metadata table.
+            size (Size, optional): override initial metadata capacity.
         """
-        self.size = size
-        logger.info(f"TriagePrefetcher initialized with metadata size: {self.size}")
+        if size:
+            self.size = size
+        self.table.clear()
+        self.last_access_per_pc.clear()
+        self.meta_accesses = 0
+        self.useful_prefetches = 0
+        logger.info(f"Triage init: metadata capacity = {self.size}")
 
     def progress(self, access: MemoryAccess, prefetch_hit: bool) -> List[int]:
         """
-        Process a memory access and determine if a prefetch should be issued.
+        Process one memory access, update metadata and maybe predict.
 
         Args:
-            access (MemoryAccess): The memory access (address, PC).
-            prefetch_hit (bool): Whether this access was already prefetched.
+            access (MemoryAccess): (address, PC)
+            prefetch_hit (bool): whether this access was prefetched
 
         Returns:
-            List[int]: A list containing one predicted address to prefetch, or empty if none.
+            List[int]: list with at most one prefetch address
         """
-        current_pc = access.pc
-        current_addr = access.address
-        predictions = []
+        pc = access.pc
+        addr = access.address
+        preds: List[int] = []
 
-        logger.debug(
-            f"Progressing access: PC={hex(current_pc)}, Addr={hex(current_addr)}"
-        )
+        # 1) Train on PC-localized stream
+        prev = self.last_access_per_pc.get(pc)
 
-        # Try to build a correlation (previous_addr → current_addr)
-        previous_addr = self.last_access_per_pc.get(current_pc)
-
-        if previous_addr is not None:
-            entry = self.table.get(previous_addr)
-
-            if entry:
-                if entry.neighbor == current_addr:
-                    entry.confidence = min(entry.confidence + 1, 1)
-                    logger.debug(
-                        f"Confirmed correlation ({hex(previous_addr)} → {hex(current_addr)})"
-                    )
-                else:
-                    entry.confidence -= 1
-                    logger.debug(f"Decaying confidence for {hex(previous_addr)}")
-                    if entry.confidence <= 0:
-                        logger.info(
-                            f"Updating neighbor for {hex(previous_addr)} to {hex(current_addr)}"
-                        )
-                        entry.neighbor = current_addr
-                        entry.confidence = 1
-            else:
-                if len(self.table) >= int(self.size):
-                    self._evict_metadata()
-                self.table[previous_addr] = TriagePrefetcherMetaData(
-                    neighbor=current_addr
-                )
-                logger.info(
-                    f"Inserted new metadata entry: {hex(previous_addr)} → {hex(current_addr)}"
-                )
-
-        # Predict from current address
-        entry = self.table.get(current_addr)
-        if entry:
-            predictions.append(entry.neighbor)
+        if prev is not None and prefetch_hit:
+            entry = self.table.get(prev)
+            entry.score += 1
+            self.useful_prefetches += 1
             logger.debug(
-                f"Prefetch prediction: {hex(current_addr)} → {hex(entry.neighbor)}"
+                f"prefetch hit! updating score {hex(addr)}→{hex(entry.neighbor)} (score={entry.score})"
             )
 
-        # Update last address for this PC
-        self.last_access_per_pc[current_pc] = current_addr
-        return predictions
+        if prev is not None:
+            md = self.table.get(prev)
+            # update or insert mapping prev → addr
+            if md:
+                if md.neighbor == addr:
+                    md.confidence = 1
+                else:
+                    md.confidence -= 1
+                    if md.confidence <= 0:
+                        md.neighbor = addr
+                        md.confidence = 1
+            else:
+                # if full, evict one
+                if len(self.table) >= int(self.size):
+                    self._evict_entry()
+                self.table[prev] = TriagePrefetcherMetaData(neighbor=addr)
+                logger.debug(f"New mapping: {hex(prev)}→{hex(addr)}")
 
-    def _evict_metadata(self):
+        # 2) Prediction only if this PC is “trained” (we’ve seen it before)
+        if prev is not None:
+            entry = self.table.get(addr)
+            if entry:
+                preds.append(entry.neighbor)
+                # score this entry only if the subsequent access missed (useful)
+                if prefetch_hit:
+                    entry.score += 1
+                    self.useful_prefetches += 1
+                logger.debug(
+                    f"Predict {hex(addr)}→{hex(entry.neighbor)} (score={entry.score})"
+                )
+
+        # 3) Update stats and maybe resize
+        self.meta_accesses += 1
+        if self.meta_accesses >= self.resize_epoch:
+            self._maybe_resize()
+            self.meta_accesses = 0
+            self.useful_prefetches = 0
+
+        # 4) Update last access for this PC
+        self.last_access_per_pc[pc] = addr
+        return preds
+
+    def _evict_entry(self):
         """
-        Evict an entry from the metadata table using a simple FIFO policy.
+        Evict the entry with the lowest 'score' (Hawkeye-style).
         """
-        evicted_key = next(iter(self.table))
-        evicted_entry = self.table.pop(evicted_key)
-        logger.warning(
-            f"Evicted metadata entry: {hex(evicted_key)} → {hex(evicted_entry.neighbor)}"
-        )
+        # find the key with minimum score
+        victim = min(self.table.items(), key=lambda kv: kv[1].score)[0]
+        md = self.table.pop(victim)
+        logger.info(f"Evicted {hex(victim)}→{hex(md.neighbor)} (score={md.score})")
+
+    def _maybe_resize(self):
+        """
+        Grow/shrink metadata capacity based on usefulness ratio.
+        """
+        ratio = self.useful_prefetches / max(1, self.resize_epoch)
+        old = int(self.size)
+        if ratio > self.grow_thresh and int(self.size) < int(self.max_size):
+            # grow by 1.5×, capped
+            new_bytes = min(int(self.max_size), int(self.size) * 3 // 2)
+            self.size = Size(new_bytes)
+            logger.info(f"Growing table: {old}→{new_bytes} bytes (ratio={ratio:.3f})")
+        elif ratio < self.shrink_thresh and int(self.size) > int(self.min_size):
+            # shrink by 0.75×, floored
+            new_bytes = max(int(self.min_size), int(self.size) * 3 // 4)
+            self.size = Size(new_bytes)
+            logger.info(f"Shrinking table: {old}→{new_bytes} bytes (ratio={ratio:.3f})")
 
     def close(self):
         """
-        Clean up internal state and log summary.
+        Final cleanup.
         """
-        logger.info(
-            f"TriagePrefetcher shutting down. Total metadata entries: {len(self.table)}"
-        )
+        logger.info(f"Triage closed: final entries={len(self.table)}")
         self.table.clear()
         self.last_access_per_pc.clear()
