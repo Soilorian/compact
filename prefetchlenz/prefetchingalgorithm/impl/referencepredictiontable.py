@@ -42,7 +42,7 @@ class RptAlgorithm(PrefetchAlgorithm):
         logger.debug("RPT init: clearing table")
         self.table.clear()
 
-    def progress(self, access: MemoryAccess) -> List[int]:
+    def progress(self, access: MemoryAccess, prefetch_hit) -> List[int]:
         """
         Feed next access and get prefetch addresses.
 

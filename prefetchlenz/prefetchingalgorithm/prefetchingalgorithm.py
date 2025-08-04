@@ -1,6 +1,8 @@
 import logging
 from abc import ABC, abstractmethod
 
+from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
+
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm")
 
 
@@ -13,15 +15,16 @@ class PrefetchAlgorithm(ABC):
         pass
 
     @abstractmethod
-    def progress(self, address: int):
+    def progress(self, access: MemoryAccess, prefetch_hit: bool):
         """
         Process a single memory access.
 
         Args:
-            address (int): The current memory address.
+            access (MemoryAccess): The current memory access.
+            prefetch_hit (bool): Whether the memory access is prefetched.
 
         Returns:
-            List[int]: Predicted future addresses to prefetch.
+            List[address]: Predicted future addresses to prefetch.
         """
         pass
 

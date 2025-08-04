@@ -28,14 +28,17 @@ class Analyzer:
         correct = 0
         incorrect = 0
         pending = set()
+        prefetch_hit = False
 
         self.dataloader.load()
         dataSize = len(self.dataloader)
         logger.info(f"Starting analysis on {dataSize} data")
 
         for idx in range(dataSize):
+            pending.clear()
             addr = self.dataloader[idx]
-            preds = self.algorithm.progress(addr)
+            preds = self.algorithm.progress(addr, prefetch_hit)
+            prefetch_hit = False
             for p in preds:
                 pending.add(p)
 
@@ -43,7 +46,7 @@ class Analyzer:
                 next_addr = self.dataloader[idx + 1]
                 if next_addr in pending:
                     correct += 1
-                    pending.remove(next_addr)
+                    prefetch_hit = True
                     logger.debug(f"Correct: {next_addr}")
                 else:
                     incorrect += 1
