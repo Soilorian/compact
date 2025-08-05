@@ -31,14 +31,16 @@ class TriagePrefetcher(PrefetchAlgorithm):
 
     def __init__(
         self,
+        num_ways: int = 1,
         init_size: Size = Size.from_kb(512),
-        min_size: Size = Size.from_kb(128),
-        max_size: Size = Size.from_mb(2),
+        min_size: Size = Size(0),
+        max_size: Size = Size.from_mb(1),
         resize_epoch: int = 50_000,
-        grow_thresh: float = 0.1,
+        grow_thresh: float = 0.05,
         shrink_thresh: float = 0.05,
     ):
-        self.size = init_size
+        self.num_ways = num_ways
+        self.num_sets = init_size.bytes / num_ways
         self.min_size = min_size
         self.max_size = max_size
 
