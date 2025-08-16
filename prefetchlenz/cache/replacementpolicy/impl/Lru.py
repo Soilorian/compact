@@ -3,7 +3,7 @@ from collections import OrderedDict
 from prefetchlenz.cache.replacementpolicy.ReplacementPolicy import ReplacementPolicy
 
 
-class LRUReplacementPolicy(ReplacementPolicy):
+class LruReplacementPolicy(ReplacementPolicy):
     def __init__(self):
         self.order = OrderedDict()
 
@@ -20,3 +20,6 @@ class LRUReplacementPolicy(ReplacementPolicy):
 
     def remove(self, key: int):
         self.order.pop(key, None)
+
+    def prefetch_hit(self, key: int):
+        pass
