@@ -1,250 +1,151 @@
 import logging
-from collections import Counter, OrderedDict, deque
 from dataclasses import dataclass
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import List, Optional
 
+from prefetchlenz.cache.Cache import Cache
+from prefetchlenz.cache.replacementpolicy.impl.lru import LruReplacementPolicy
 from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
 from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
+from prefetchlenz.util.size import Size
 
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.correlation")
 
 
 @dataclass
-class _Succ:
-    addr: int
-    cnt: int
-
-
-class _LRUMap:
+class PredictionWithConfidence:
     """
-    Small, set-associative style map using an OrderedDict as a fully-assoc LRU.
-    Holds: key(int) -> Counter(int->int) of successor counts.
-    Evicts the least-recently used 'key' when capacity is exceeded.
+    Represents a predicted address with an associated confidence counter.
     """
 
-    def __init__(self, capacity: int):
-        self.capacity = max(1, capacity)
-        self.map: "OrderedDict[int, Counter]" = OrderedDict()
+    prediction: int
+    confidence: int
 
-    def get(self, key: int) -> Optional[Counter]:
-        c = self.map.get(key)
-        if c is None:
-            return None
-        self.map.move_to_end(key)
-        return c
+    @classmethod
+    def create(cls, prediction: int):
+        return PredictionWithConfidence(prediction=prediction, confidence=1)
 
-    def touch(self, key: int):
-        if key in self.map:
-            self.map.move_to_end(key)
 
-    def put_if_absent(self, key: int) -> Counter:
-        c = self.map.get(key)
-        if c is not None:
-            self.map.move_to_end(key)
-            return c
-        # evict if full
-        if len(self.map) >= self.capacity:
-            ev_k, ev_v = self.map.popitem(last=False)
-            logger.debug("corr: evict trigger 0x%x with %d succs", ev_k, len(ev_v))
-        c = Counter()
-        self.map[key] = c
-        return c
+@dataclass
+class CorrelationTableEntry:
+    """
+    Holds correlation predictions for a single trigger address.
+    Each entry tracks up to `prediction_limit` predictions with confidence.
+    """
 
-    def items(self):
-        return self.map.items()
+    trigger: int
+    predictions: List[PredictionWithConfidence]
+    prediction_limit: int = 4
+    discard_threshold: int = 0
+    max_confidence: int = 3  # cap confidence to prevent runaway growth
 
-    def clear(self):
-        self.map.clear()
+    def update(self, prediction: int):
+        """
+        Update the correlation entry with a new observed prediction.
+        - If prediction already present, increment confidence.
+        - If free slot available, add as new prediction.
+        - If full, decay weakest entry and replace if confidence below threshold.
+        """
+        # Check if already present
+        for pwc in self.predictions:
+            if pwc.prediction == prediction:
+                pwc.confidence = min(pwc.confidence + 1, self.max_confidence)
+                return
+
+        # Add new if space available
+        if len(self.predictions) < self.prediction_limit:
+            self.predictions.append(PredictionWithConfidence.create(prediction))
+            return
+
+        # Otherwise, decay weakest prediction
+        weakest = min(self.predictions, key=lambda p: p.confidence)
+        weakest.confidence -= 1
+        if weakest.confidence <= self.discard_threshold:
+            self.predictions.remove(weakest)
+            self.predictions.append(PredictionWithConfidence.create(prediction))
+
+
+class CorrelationTable:
+    """
+    Global correlation table mapping triggers -> predictions with confidence.
+    Uses an LRU replacement policy to manage limited entries.
+    """
+
+    selection_threshold = 2  # minimum confidence required for issuing a prefetch
+    storage: Cache = Cache(
+        num_ways=64,  # number of entries
+        num_sets=1,
+        replacement_policy_cls=LruReplacementPolicy,
+    )
+
+    def get(self, trigger: int) -> Optional[CorrelationTableEntry]:
+        return self.storage.get(trigger)
+
+    def put(self, trigger: int, prediction: int):
+        """
+        Update correlation for (trigger -> prediction).
+        Creates new entry if trigger not yet in table.
+        """
+        entry: Optional[CorrelationTableEntry] = self.storage.get(trigger)
+        if entry is None:
+            entry = CorrelationTableEntry(trigger=trigger, predictions=[])
+            self.storage.put(trigger, entry)
+        entry.update(prediction)
+
+    def predictions_for(self, trigger: int) -> List[int]:
+        """
+        Return a list of predictions above the confidence threshold.
+        """
+        entry: Optional[CorrelationTableEntry] = self.storage.get(trigger)
+        if entry is None:
+            return []
+        return [
+            p.prediction
+            for p in entry.predictions
+            if p.confidence >= self.selection_threshold
+        ]
 
 
 class CorrelationPrefetcher(PrefetchAlgorithm):
     """
-    Correlation Prefetcher with 'user-level memory thread' behavior (software model).
-    Key ideas from the paper:
-      - Learn (trigger -> successor) relationships among blocks that recur within a small miss-distance window.
-      - On each access to trigger T, issue top-K successors S1..Sk (prefetch degree).
-      - When a prefetched successor becomes a demand hit later, *chain* by issuing its successors
-        (emulating the ULT continuing along the correlation graph).
-      - Periodic aging of counts to keep the table responsive.
-
-    Interfaces:
-      - init()
-      - progress(access: MemoryAccess, prefetch_hit: bool) -> List[int]  # addresses to prefetch
-      - close()
+    Correlation-based prefetcher.
+    Observes address stream, learns correlations (trigger -> predicted addresses),
+    and issues prefetches when confidence is high enough.
     """
 
-    def __init__(
-        self,
-        window: int = 16,  # correlation window (in intervening demand accesses)
-        table_capacity: int = 8192,  # max distinct trigger entries kept (LRU)
-        max_succ_per_trigger: int = 16,  # bound stored successors per trigger (prune to top-N)
-        degree: int = 4,  # prefetch degree per trigger
-        min_count: int = 2,  # min occurrences before a successor is considered
-        chain_on_prefetch_hit: bool = True,
-        aging_interval: int = 50_000,  # accesses between count aging
-        aging_factor: float = 0.5,  # multiply counts by this on aging
-    ):
-        self.window = max(1, window)
-        self.table = _LRUMap(capacity=table_capacity)
-        self.max_succ_per_trigger = max(1, max_succ_per_trigger)
-        self.degree = max(1, degree)
-        self.min_count = max(1, min_count)
-        self.chain_on_prefetch_hit = chain_on_prefetch_hit
-        self.aging_interval = max(1, aging_interval)
-        self.aging_factor = max(0.1, min(0.95, aging_factor))
+    def __init__(self):
+        self.table = CorrelationTable()
+        self.last_access: Optional[int] = None
 
-        # Sliding window of recent demand addresses (we correlate *demand* references).
-        self.recent: Deque[int] = deque(maxlen=self.window)
-
-        # Outstanding prefetches: tgt_addr -> trigger_addr that issued it
-        self.outstanding: Dict[int, int] = {}
-
-        # Stats/housekeeping
-        self._accesses = 0
-        self._prefetches_issued = 0
-        self._chains = 0
-
-    # ---------------- lifecycle ----------------
     def init(self):
-        self.table.clear()
-        self.recent.clear()
-        self.outstanding.clear()
-        self._accesses = 0
-        self._prefetches_issued = 0
-        self._chains = 0
-        logger.info(
-            "corr: init window=%d table_capacity=%d max_succ=%d degree=%d min_count=%d aging=(%d,%.2f) chain=%s",
-            self.window,
-            self.table.capacity,
-            self.max_succ_per_trigger,
-            self.degree,
-            self.min_count,
-            self.aging_interval,
-            self.aging_factor,
-            self.chain_on_prefetch_hit,
-        )
+        """Initialize state before simulation."""
+        self.last_access = None
 
     def close(self):
-        logger.info(
-            "corr: close issued=%d chains=%d triggers=%d",
-            self._prefetches_issued,
-            self._chains,
-            len(list(self.table.items())),
-        )
-        self.table.clear()
-        self.recent.clear()
-        self.outstanding.clear()
+        """Clean up state after simulation."""
+        self.last_access = None
 
-    # ---------------- internals ----------------
-    def _age(self):
-        """
-        Halve (by factor) all successor counts. This is coarse but effective.
-        """
-        aged = 0
-        for trig, succs in self.table.items():
-            # Multiply and floor to int, drop zeros
-            new_c = Counter()
-            for s, c in succs.items():
-                nc = int(c * self.aging_factor)
-                if nc > 0:
-                    new_c[s] = nc
-            self.table.map[trig] = new_c  # assign back
-            aged += 1
-        logger.debug("corr: aged %d triggers", aged)
-
-    def _train_with_address(self, addr: int):
-        """
-        Update correlations: for each prior address in the window, bump count(prior -> addr).
-        We also bound per-trigger successor set to top-N by count.
-        """
-        # Correlate with *distinct* prior addresses to avoid inflating self-correlation from bursts
-        seen = set()
-        for prev in reversed(self.recent):
-            if prev == addr:  # avoid self-pairing (optional)
-                continue
-            if prev in seen:
-                continue
-            seen.add(prev)
-
-            succs = self.table.put_if_absent(prev)
-            succs[addr] += 1
-
-            # prune if too many successors stored
-            if len(succs) > self.max_succ_per_trigger:
-                # keep top-N by count; deterministic tie-breaker by smaller addr
-                top = sorted(succs.items(), key=lambda kv: (-kv[1], kv[0]))[
-                    : self.max_succ_per_trigger
-                ]
-                self.table.map[prev] = Counter(dict(top))
-
-        # push current address into the window after training
-        self.recent.append(addr)
-
-    def _best_successors(self, trigger: int, k: int) -> List[int]:
-        cnts = self.table.get(trigger)
-        if not cnts:
-            return []
-        # choose successors by highest count, tie-breaker by smaller address (stable)
-        ranked = sorted(cnts.items(), key=lambda kv: (-kv[1], kv[0]))
-        result: List[int] = []
-        for s, c in ranked:
-            if c < self.min_count:
-                continue
-            result.append(s)
-            if len(result) >= k:
-                break
-        return result
-
-    def _record_outstanding(self, origin: int, targets: List[int]):
-        for t in targets:
-            # only remember the first issuer if multiple would add the same target
-            self.outstanding.setdefault(t, origin)
-
-    # ---------------- main entry ----------------
     def progress(self, access: MemoryAccess, prefetch_hit: bool) -> List[int]:
         """
-        Train on the demand 'access' and emit prefetch targets.
-        If 'prefetch_hit' is True, and chaining is enabled, continue from that address as a trigger.
+        Advance prefetcher on new memory access.
+        - If prefetch hit observed, reinforce correlation.
+        - If current address has high-confidence predictions, issue prefetches.
+        - Always update correlation (last_access -> current).
         """
-        self._accesses += 1
-        if self._accesses % self.aging_interval == 0:
-            self._age()
+        addr = access.address
+        prefetches: List[int] = []
 
-        addr = int(access.address)
+        # reinforce on prefetch hit
+        if prefetch_hit and self.last_access is not None:
+            self.table.put(self.last_access, addr)
 
-        # (A) If this access hits a previously issued prefetch, optionally chain
-        chained_targets: List[int] = []
-        if prefetch_hit and self.chain_on_prefetch_hit:
-            origin = self.outstanding.pop(addr, None)
-            if origin is not None:
-                # treat current addr as a trigger; this emulates the ULT continuing along the graph
-                chained_targets = self._best_successors(addr, self.degree)
-                if chained_targets:
-                    self._chains += 1
-                    logger.debug(
-                        "corr: chain from 0x%x -> %s",
-                        addr,
-                        [hex(x) for x in chained_targets],
-                    )
-
-        # (B) Normal trigger: current demand address
-        direct_targets = self._best_successors(addr, self.degree)
-
-        # Combine (avoid duplicates; chained first to encourage deeper walk)
-        preds: List[int] = []
-        seen = set()
-        for t in chained_targets + direct_targets:
-            if t != addr and t not in seen:
-                preds.append(t)
-                seen.add(t)
-
-        # Record outstanding so we can credit chain on future hits
+        # prefetch if predictions are strong enough
+        preds = self.table.predictions_for(addr)
         if preds:
-            self._record_outstanding(addr, preds)
-            self._prefetches_issued += len(preds)
-            logger.info("corr: trigger 0x%x -> preds=%s", addr, [hex(x) for x in preds])
+            prefetches.extend(preds)
 
-        # (C) Train correlations using this demand address
-        self._train_with_address(addr)
+        # update correlation from last access
+        if self.last_access is not None:
+            self.table.put(self.last_access, addr)
 
-        return preds
+        self.last_access = addr
+        return prefetches
