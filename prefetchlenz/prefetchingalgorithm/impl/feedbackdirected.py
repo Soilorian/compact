@@ -2,6 +2,9 @@ import logging
 from typing import List
 
 from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.access.feedbackdirectedmemoryaccess import (
+    FeedbackDirectedMemoryAccess,
+)
 from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 logger = logging.getLogger("prefetchLenz.FeedbackDirectedPrefetcher")
@@ -46,7 +49,7 @@ class FeedbackDirectedPrefetcher(PrefetchAlgorithm):
         # Prefetcher Configuration based on the paper's Table 1
         self.configs = {
             1: {"distance": 4, "degree": 1},
-            2: {"distance": 8, "degree": 2},
+            2: {"distance": 8, "degree": 1},
             3: {"distance": 16, "degree": 2},
             4: {"distance": 32, "degree": 4},
             5: {"distance": 64, "degree": 4},
@@ -173,19 +176,20 @@ class FeedbackDirectedPrefetcher(PrefetchAlgorithm):
 
         # Adjust aggressiveness based on the paper's Table 2
         new_config_counter = self.dyn_config_counter
-        if poll_class == "polluting":
-            # Case 4, 6, 8, 10, 12: Decrement aggressiveness
-            if not (
-                acc_class == "high" and late_class == "late"
-            ):  # The exception from the paper
-                new_config_counter = max(1, self.dyn_config_counter - 1)
-        elif late_class == "late":
-            if (
-                acc_class == "high" or acc_class == "medium"
-            ):  # Case 1, 5: Increment aggressiveness
+        if acc_class == "high":
+            if late_class == "late":
                 new_config_counter = min(5, self.dyn_config_counter + 1)
-            else:  # Case 9: Low accuracy & late prefetches, decrement to save bandwidth
+            elif poll_class == "polluting":
                 new_config_counter = max(1, self.dyn_config_counter - 1)
+        elif acc_class == "medium":
+            if poll_class == "polluting":
+                new_config_counter = max(1, self.dyn_config_counter - 1)
+            elif late_class == "late":
+                new_config_counter = min(5, self.dyn_config_counter + 1)
+        else:
+            if poll_class == "polluting" or late_class == "late":
+                new_config_counter = max(1, self.dyn_config_counter - 1)
+
         # Otherwise (not late, not polluting), no change is needed (Cases 3, 7, 11)
 
         if new_config_counter != self.dyn_config_counter:
@@ -205,7 +209,9 @@ class FeedbackDirectedPrefetcher(PrefetchAlgorithm):
         self.t_interval_counter = 0
         self.inflight_prefetches = {}
 
-    def progress(self, access: MemoryAccess, prefetch_hit: bool) -> List[int]:
+    def progress(
+        self, access: FeedbackDirectedMemoryAccess, prefetch_hit: bool
+    ) -> List[int]:
         """
         Processes a single memory access, updates metrics, and generates prefetch candidates.
         """
@@ -217,7 +223,7 @@ class FeedbackDirectedPrefetcher(PrefetchAlgorithm):
 
         # Update counters for the current access
         # Assume a demand access if it's not a prefetch hit
-        is_demand_access = not prefetch_hit
+        is_demand_access = access.demandMiss
         self._update_counters(
             access=access,
             is_demand_access=is_demand_access,
