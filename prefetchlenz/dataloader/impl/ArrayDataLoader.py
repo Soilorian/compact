@@ -4,15 +4,9 @@ from dataclasses import dataclass
 from typing import List
 
 from prefetchlenz.dataloader.dataloader import DataLoader
+from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 logger = logging.getLogger("prefetchLenz.dataloader.impl")
-
-
-@dataclass
-class MemoryAccess:
-    cpu: int
-    address: int
-    pc: int
 
 
 class ArrayLoader(DataLoader):

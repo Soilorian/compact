@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm")
 
