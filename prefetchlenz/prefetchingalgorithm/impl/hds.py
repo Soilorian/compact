@@ -1,14 +1,14 @@
+from __future__ import annotations
+
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Deque, Dict, FrozenSet, Iterable, List, Optional, Tuple
+from typing import Deque, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
+
+from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.hds")
-
-# Assumed interface:
-# class MemoryAccess:
-#     pc: int
-#     address: int
+logger.addHandler(logging.NullHandler())
 
 Symbol = Tuple[int, int]  # (pc, addr)
 StateElem = Tuple[int, int]  # (stream_id, seen) where 0 <= seen < headLen
@@ -24,6 +24,7 @@ class HotStream:
 
     @property
     def head(self) -> List[Symbol]:
+        # headLen will be injected by DFSM construction time as an attribute
         return self.seq[: self.headLen]  # type: ignore[attr-defined]
 
     @property
@@ -31,16 +32,16 @@ class HotStream:
         return self.seq[self.headLen :]  # type: ignore[attr-defined]
 
 
+# ----------------------- BurstyController -----------------------------------
+
+
 class BurstyController:
     """
-    Implements the paper's bursty tracing counters:
-      - nCheck0 (mostly uninstrumented)
-      - nInstr0 (instrumented burst length)
-      - nAwake0 burst-periods awake, then nHibernate0 periods hibernating
-
-    We expose:
-      - should_profile(): whether to record references this step
-      - tick(): advance one 'check' point (we treat each MemoryAccess as a check)
+    Implements bursty tracing counters:
+      - nCheck0, nInstr0 control a burst-period
+      - nAwake0 periods of being 'awake' (instrument) then nHibernate0 'hibernate' periods.
+    Use tick() per dynamic check and should_profile() to decide whether to record the
+    reference in the profiling buffer for the current check.
     """
 
     def __init__(self, nCheck0: int, nInstr0: int, nAwake0: int, nHibernate0: int):
@@ -67,6 +68,7 @@ class BurstyController:
             self.nCheck0 if self._phase_awake else (self.nCheck0 + self.nInstr0 - 1)
         )
         self._instr_left = self.nInstr0 if self._phase_awake else 1
+        logger.debug("BurstyController: flipped phase -> awake=%s", self._phase_awake)
 
     def should_profile(self) -> bool:
         return self._phase_awake and self._instr_left > 0
@@ -76,25 +78,17 @@ class BurstyController:
         if self._phase_awake:
             if self._instr_left > 0:
                 self._instr_left -= 1
-                if self._instr_left == 0:
-                    # exit burst; continue checks until period ends
-                    pass
-            else:
-                # checking-only portion
-                pass
         else:
-            # hibernating: 1-instruction 'instrumented' per period, effectively negligible
+            # hibernating: occasional one-instruction instrumented
             if self._instr_left > 0:
                 self._instr_left -= 1
 
         self._checks_left -= 1
         if self._checks_left == 0:
-            # completed a burst-period
             self._period_left -= 1
             if self._period_left == 0:
                 self._flip_phase()
             else:
-                # start next period within same phase
                 if self._phase_awake:
                     self._checks_left = self.nCheck0
                     self._instr_left = self.nInstr0
@@ -103,24 +97,21 @@ class BurstyController:
                     self._instr_left = 1
 
 
+# ----------------------- StreamMiner ---------------------------------------
+
+
 class StreamMiner:
     """
-    Fast(ish) online approximation for hot stream discovery.
-    We approximate the paper’s Sequitur-based detection with a bounded n-gram scan
-    that counts non-overlapping occurrences and scores v by heat = len(v) * frequency.
-
-    Controls:
-      - min_len, max_len
-      - heat_threshold H
-      - min_unique (to exclude trivially repeating same-symbol runs)
-      - max_profile_buffer: max references kept in one awake window
+    Approximate hot-stream discovery via non-overlapping n-gram counts.
+    Feed symbols via feed(sym). Call analyze() to return candidate streams
+    as lists of Symbol. reset() clears internal buffer.
     """
 
     def __init__(
         self,
-        min_len: int = 11,  # paper used >10
+        min_len: int = 11,
         max_len: int = 64,
-        heat_threshold: int = 8,  # tunable
+        heat_threshold: int = 8,
         min_unique: int = 2,
         max_profile_buffer: int = 50_000,
     ):
@@ -135,25 +126,21 @@ class StreamMiner:
         if len(self.buffer) < self.max_profile_buffer:
             self.buffer.append(sym)
 
-    def _nonoverlap_counts(
-        self, seq: List[Symbol], L: int
-    ) -> Dict[Tuple[Symbol, ...], int]:
+    def _nonoverlap_counts(self, seq: List[Symbol], L: int):
         counts: Dict[Tuple[Symbol, ...], int] = defaultdict(int)
         i = 0
         n = len(seq)
         while i + L <= n:
             s = tuple(seq[i : i + L])
             counts[s] += 1
-            i += L  # non-overlapping by construction for this pass
+            i += L
         return counts
 
     def analyze(self) -> List[List[Symbol]]:
         if not self.buffer:
             return []
-        logger.info("HDS: analyzing %d profiled references", len(self.buffer))
-        # Multi-length scan, accumulate best candidates by heat
+        logger.info("HDS: StreamMiner analyzing %d samples", len(self.buffer))
         best: Dict[Tuple[Symbol, ...], int] = {}
-        # A cheap heuristic: sample a stride of 1 and also a staggered start to capture shifts
         for start in (0, 1, 2):
             seq = self.buffer[start:]
             for L in range(self.min_len, min(self.max_len, len(seq)) + 1):
@@ -169,8 +156,7 @@ class StreamMiner:
                         if heat > prev:
                             best[s] = heat
 
-        # De-subsumption: if a longer stream’s occurrences fully cover a shorter one, prefer longer
-        # Simple filter: drop any stream that is a contiguous substring of another chosen stream.
+        # De-subsumption: remove sequences that are contiguous substrings of larger chosen sequence
         streams = sorted(best.items(), key=lambda x: (-x[1], -len(x[0])))
         chosen: List[Tuple[Tuple[Symbol, ...], int]] = []
         for s, heat in streams:
@@ -179,12 +165,11 @@ class StreamMiner:
             chosen.append((s, heat))
 
         result = [list(s) for (s, _) in chosen]
-        logger.info("HDS: selected %d hot streams", len(result))
+        logger.info("HDS: StreamMiner selected %d hot streams", len(result))
         return result
 
     @staticmethod
     def _is_subsequence(a: Tuple[Symbol, ...], b: Tuple[Symbol, ...]) -> bool:
-        # is 'a' a contiguous subsequence of 'b'?
         if len(a) > len(b):
             return False
         for i in range(len(b) - len(a) + 1):
@@ -196,11 +181,13 @@ class StreamMiner:
         self.buffer.clear()
 
 
+# ----------------------- DFSM -----------------------------------------------
+
+
 class DFSM:
     """
-    Single DFSM that matches prefixes of ALL hot streams simultaneously, as in the paper.
-    States are frozensets of (stream_id, seen), where seen in [0, headLen-1].
-    Transition on a Symbol -> next State, possibly with prefetch payloads of the matched streams’ tails.
+    Single DFSM matching prefixes of all hot streams in parallel.
+    States are frozensets of (stream_id, seen).
     """
 
     def __init__(self, hot_streams: List[HotStream], headLen: int):
@@ -209,7 +196,6 @@ class DFSM:
         for hs in self.hot_streams:
             object.__setattr__(hs, "headLen", headLen)  # attach for convenience
 
-        # Build alphabet only from head symbols
         self.alphabet: List[Symbol] = sorted(
             {
                 hs.head[i]
@@ -219,10 +205,7 @@ class DFSM:
         )
         self.start: State = frozenset()
         self.transitions: Dict[Tuple[State, Symbol], State] = {}
-        self.prefetches: Dict[State, List[List[Symbol]]] = (
-            {}
-        )  # state -> list of tails to prefetch
-
+        self.prefetches: Dict[State, List[List[Symbol]]] = {}
         self._build()
 
     def _build(self):
@@ -235,14 +218,11 @@ class DFSM:
         seen_states = {self.start}
 
         def advance(state: State, a: Symbol) -> State:
-            # d(s, a) = {[v, n+1] | [v, n] in s and a == v[n+1]} ∪ {[w,1] | a == w[1]}
             next_elems: List[StateElem] = []
-            # advance partials
             for sid, n in state:
                 hs = self.hot_streams[sid]
                 if n < self.headLen and n < len(hs.head) and hs.head[n] == a:
                     next_elems.append((sid, n + 1))
-            # start new matches
             for hs in self.hot_streams:
                 if len(hs.head) > 0 and hs.head[0] == a:
                     next_elems.append((hs.id, 1))
@@ -258,7 +238,7 @@ class DFSM:
                         seen_states.add(ns)
                         work.append(ns)
 
-        # Annotate prefetch payloads for any state that completes a head
+        # annotate prefetch payloads for states that have completed heads
         for st in seen_states:
             payloads: List[List[Symbol]] = []
             for sid, n in st:
@@ -270,7 +250,7 @@ class DFSM:
                 self.prefetches[st] = payloads
 
         logger.info(
-            "HDS: DFSM has %d states, %d transitions, %d prefetching states",
+            "HDS: DFSM built states=%d transitions=%d prefetch_states=%d",
             len(seen_states),
             len(self.transitions),
             len(self.prefetches),
@@ -284,18 +264,15 @@ class DFSM:
         return ns, payload
 
 
+# ----------------------- HdsPrefetcher (orchestrator) -----------------------
+
+
 class HdsPrefetcher:
     """
-    Dynamic Hot Data Stream Prefetcher (software), implementing:
-      - Bursty profiling (awake/hibernate)
-      - Stream mining (approximate heat-based selection)
-      - Single DFSM prefix matcher
-      - Prefetch tail issue on match completion
-
-    Integration points:
-      - progress(access, prefetch_hit): call per MemoryAccess
-      - set_prefetch_callback(cb): cb(address:int) called once per tail symbol (dedup per access)
-      - init() / close(): lifecycle
+    Dynamic Hot Data Stream Prefetcher (software-side).
+    Controls profiling, stream mining, DFSM building, and prefix matching.
+    `progress(access, prefetch_hit)` returns the list of predicted addresses (ints)
+    for that access. Also supports a prefetch callback via set_prefetch_callback(cb).
     """
 
     def __init__(
@@ -305,10 +282,10 @@ class HdsPrefetcher:
         max_len: int = 64,
         heat_threshold: int = 12,
         min_unique: int = 2,
-        nCheck0: int = 11_940,
+        nCheck0: int = 11940,
         nInstr0: int = 60,
         nAwake0: int = 50,
-        nHibernate0: int = 2_450,
+        nHibernate0: int = 2450,
         max_hot_streams: int = 64,
     ):
         self.headLen = headLen
@@ -323,81 +300,106 @@ class HdsPrefetcher:
         self._matches = 0
 
     def set_prefetch_callback(self, cb):
+        """Set callback(cb: int) called per predicted address when prefetching."""
         self.prefetch_cb = cb
 
     def init(self):
         logger.info("HDS: init (headLen=%d)", self.headLen)
-        self.controller = self.controller  # no-op; keep counters
         self.miner.reset()
         self.dfsm = None
         self.state = frozenset()
         self._prefetches_issued = 0
         self._matches = 0
 
-    def _symbolize(self, access) -> Symbol:
-        return (int(access.pc), int(access.key))
+    def _symbolize(self, access: MemoryAccess) -> Symbol:
+        return int(access.pc), int(access.address)
 
     def _rebuild_dfsm(self, streams: List[List[Symbol]]):
-        # Cap number of hot streams, rank by length descending as a cheap proxy for coverage.
         ranked = sorted(streams, key=lambda s: (-len(s), s[0] if s else (0, 0)))[
             : self.max_hot_streams
         ]
         hot = [HotStream(id=i, seq=list(s)) for i, s in enumerate(ranked)]
         self.dfsm = DFSM(hot, self.headLen)
         self.state = frozenset()
+        logger.info("HDS: rebuilt DFSM with %d streams", len(hot))
 
     def _maybe_profile(self, sym: Symbol):
         if self.controller.should_profile():
             self.miner.feed(sym)
+            logger.debug("HDS: profiled symbol %s", str(sym))
 
     def _maybe_analyze_and_optimize(self):
-        # Trigger analysis exactly when we switch from awake->hibernate (period boundary) is handled by controller.
-        # Here we simply rebuild when DFSM is None and we have data, or at any awake-end implied by buffer fullness.
+        # Rebuild DFSM if none exists and miner has data
         if self.dfsm is None and len(self.miner.buffer) > 0:
             streams = self.miner.analyze()
             if streams:
                 self._rebuild_dfsm(streams)
             self.miner.reset()
 
-    def _prefetch_payloads(self, payloads: Iterable[List[Symbol]]):
-        seen_block: set = set()
+    def _prefetch_payloads(self, payloads: Iterable[List[Symbol]]) -> List[int]:
+        """
+        Issue prefetch callback for all payload symbols. Returns list of unique addresses issued.
+        Deduplicated per invocation.
+        """
+        seen_block: Set[int] = set()
+        issued_addrs: List[int] = []
         for seq in payloads:
             for _, addr in seq:
                 if addr not in seen_block:
-                    self.prefetch_cb(addr)
+                    try:
+                        self.prefetch_cb(addr)
+                    except Exception:
+                        logger.exception(
+                            "HDS: prefetch_cb raised for addr=%s", hex(addr)
+                        )
                     seen_block.add(addr)
+                    issued_addrs.append(addr)
                     self._prefetches_issued += 1
+                    logger.debug("HDS: prefetch issued addr=0x%X", addr)
+        return issued_addrs
 
-    def progress(self, access, prefetch_hit: bool = False):
+    def progress(self, access: MemoryAccess, prefetch_hit: bool = False) -> List[int]:
         """
-        Call on each MemoryAccess.
+        Should be called on every memory access.
+        Returns a list of predicted addresses (may be empty).
         """
         sym = self._symbolize(access)
-        # 1) profiling
+        predictions: List[int] = []
+
+        # 1) profiling (sampled via bursty controller)
         self._maybe_profile(sym)
 
-        # 2) matching/prefetching (during both phases; the paper keeps checks live in hibernation)
+        # 2) matching/prefetching against DFSM if available
         if self.dfsm is not None:
             ns, payloads = self.dfsm.step(self.state, sym)
             if ns != self.state:
-                # state advanced or reset
+                logger.debug(
+                    "HDS: DFSM state advanced from %s to %s on sym=%s",
+                    str(self.state),
+                    str(ns),
+                    str(sym),
+                )
                 self.state = ns
             if payloads:
                 self._matches += 1
-                self._prefetch_payloads(payloads)
+                preds = self._prefetch_payloads(payloads)
+                predictions.extend(preds)
 
         # 3) advance bursty counters and possibly rebuild DFSM when transitioning to hibernation
         self.controller.tick()
 
-        # Rebuild DFSM when (a) we have data and (b) current DFSM is missing or stale.
-        if self.controller.is_awake is False:
-            # We just entered/are in hibernation: if we profiled anything recently and have no DFSM, build it.
+        # If we are (or just entered) hibernation and have buffered samples, try analyze+optimize
+        if not self.controller.is_awake:
             self._maybe_analyze_and_optimize()
 
-        # Optional bookkeeping on prefetch hits (to adapt policies later)
+        # Optional reaction to prefetch_hit for adaptation (left as a hook)
         if prefetch_hit:
-            # You can add adaptive tweaks here (e.g., raise headLen or heat threshold on too many false positives)
-            pass
+            logger.debug(
+                "HDS: observed prefetch_hit for addr=%s",
+                getattr(access, "address", None),
+            )
+
+        return predictions
 
     def close(self):
         logger.info(
