@@ -1,276 +1,544 @@
-# file: prefetchers/graph_prefetcher.py
 from __future__ import annotations
 
 import heapq
 import logging
+import time
 from collections import Counter, defaultdict, deque
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Deque, Dict, List, Optional, Set, Tuple
 
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
+from prefetchlenz.prefetchingalgorithm.access.graphmemoryaccess import GraphMemoryAccess
 
-# If your interface lives elsewhere, adjust the import:
-# from .prefetch_interface import PrefetchAlgorithm
+logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.graph_hw")
+logger.addHandler(logging.NullHandler())
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.graph")
+
+# ---------------------- AddrFilter ------------------------------------------
+
+
+class AddrFilter:
+    """
+    Address / PC filter stage.
+    Decides which events should become triggers.
+    - You can add PC whitelist and/or address-range whitelist.
+    - Default: accept all events.
+    """
+
+    def __init__(self):
+        self.pcs: Set[int] = set()
+        self.addr_ranges: List[Tuple[int, int]] = []
+
+    def add_pc(self, pc: int) -> None:
+        self.pcs.add(int(pc))
+
+    def add_addr_range(self, lo: int, hi: int) -> None:
+        self.addr_ranges.append((int(lo), int(hi)))
+
+    def clear(self) -> None:
+        self.pcs.clear()
+        self.addr_ranges.clear()
+
+    def pass_filter(self, access: GraphMemoryAccess) -> bool:
+        pc = access.pc
+        addr = access.address
+        if self.pcs and pc not in self.pcs:
+            logger.debug("AddrFilter: blocked by PC 0x%X", pc)
+            return False
+        if self.addr_ranges:
+            ok = any(lo <= addr < hi for (lo, hi) in self.addr_ranges)
+            if not ok:
+                logger.debug("AddrFilter: blocked by addr range 0x%X", addr)
+            return ok
+        return True
+
+
+# ---------------------- ObservationQueue ------------------------------------
 
 
 @dataclass
-class GraphPrefetcher(PrefetchAlgorithm):
+class ObsRecord:
+    ts: float
+    pc: int
+    addr: int
+    stride: int
+    inter_arrival: Optional[float]
+    latency: Optional[float] = None
+
+
+class ObservationQueue:
     """
-    Graph Prefetcher (software/simulator implementation).
-
-    High-level idea (inspired by 'Graph Prefetching Using Data Structure Knowledge'):
-      - Build a directed graph online where nodes are accessed addresses and edges
-        represent observed transitions A -> B in the access stream.
-      - Keep edge frequencies and prefer the most probable successors.
-      - On an *event* (default: cache miss), issue prefetches for the top successors
-        of the current address, and optionally their top successors (2-hop lookahead).
-      - Cap total requests by a configurable prefetch degree; avoid duplicates.
-
-    Why this fits your simulator:
-      - Requires only the address stream you already have in `progress(...)`.
-      - No need to dereference app pointers or peek into memory values.
-      - Works for linked lists, trees, graphs, hash-chains, B-trees, etc., once
-        short prefixes of transitions have been observed.
-
-    Notes:
-      - If you *do* have pointer values in `MemoryAccess` (e.g., `loaded_value` for
-        a load), you can feed that to a custom hook to strengthen edges immediately.
-      - This implementation is fully online and non-blocking for the simulator.
-
-    Reference: Graph-based prefetching approach, learned over address transitions. :contentReference[oaicite:1]{index=1}
+    Keeps short per-PC history records used by the PPU and EWMA.
+    - capacity_per_pc: number of recent records to keep per PC.
     """
 
-    # ========================= Tunables =========================
-    trigger_on_miss_only: bool = True
-    max_successors_per_node: int = 8  # bound memory for per-node fan-out
-    min_edge_support: int = 2  # minimum times we've seen A->B to use it
-    lookahead_hops: int = 2  # 1 or 2 is typical for balance
-    prefetch_degree: int = 8  # max prefetches to issue per trigger
-    aging_half_life_events: Optional[int] = 50000
-    """
-    If set, edges are gradually aged so stale paths fade out. Half-life is counted
-    in number of accesses (events). None disables aging.
-    """
+    def __init__(self, capacity_per_pc: int = 8):
+        self.capacity = max(1, int(capacity_per_pc))
+        self._hist: Dict[int, Deque[ObsRecord]] = defaultdict(
+            lambda: deque(maxlen=self.capacity)
+        )
+        self._last_addr: Dict[int, int] = {}
+        self._last_ts: Dict[int, float] = {}
 
-    # ========================= Internal state =========================
-    # transitions[A] = Counter({B: count, ...})
-    transitions: Dict[int, Counter] = field(
-        default_factory=lambda: defaultdict(Counter), init=False
-    )
-    # Keep a compact top-k view per node for quick selection:
-    # topk[A] = list[(count, B)] as a max-heap-like sorted list (we maintain sorted tuples)
-    topk: Dict[int, List[Tuple[int, int]]] = field(default_factory=dict, init=False)
+    def clear(self) -> None:
+        self._hist.clear()
+        self._last_addr.clear()
+        self._last_ts.clear()
 
-    # last address in global stream (graph is built on global order by default)
-    last_addr: Optional[int] = field(default=None, init=False)
+    def update(
+        self, access: GraphMemoryAccess, latency: Optional[float] = None
+    ) -> ObsRecord:
+        pc = access.pc
+        addr = access.address
+        now = time.time()
+        prev_addr = self._last_addr.get(pc)
+        stride = (addr - prev_addr) if prev_addr is not None else 0
+        prev_ts = self._last_ts.get(pc)
+        inter_arrival = (now - prev_ts) if prev_ts is not None else None
 
-    # Outstanding prefetches to avoid duplicates until they complete/are touched
-    outstanding: Set[int] = field(default_factory=set, init=False)
-
-    # Global event counter (for optional aging)
-    events: int = field(default=0, init=False)
-
-    # Optional: cap total distinct nodes/edges if desired (None = unlimited)
-    max_nodes: Optional[int] = None
-    max_edges: Optional[int] = None
-    node_count: int = field(default=0, init=False)
-    edge_count: int = field(default=0, init=False)
-
-    # For light dedup of topK recomputations
-    _dirty_nodes: Set[int] = field(default_factory=set, init=False)
-
-    def init(self):
-        self.transitions = defaultdict(Counter)
-        self.topk = {}
-        self.last_addr = None
-        self.outstanding = set()
-        self.events = 0
-        self.node_count = 0
-        self.edge_count = 0
-        self._dirty_nodes = set()
-        logger.debug("GraphPrefetcher initialized.")
-
-    def close(self):
+        rec = ObsRecord(
+            ts=now,
+            pc=pc,
+            addr=addr,
+            stride=stride,
+            inter_arrival=inter_arrival,
+            latency=latency,
+        )
+        self._hist[pc].append(rec)
+        self._last_addr[pc] = addr
+        self._last_ts[pc] = now
         logger.debug(
-            "GraphPrefetcher closing. Nodes=%d, Edges~=%d",
-            len(self.transitions),
-            sum(len(c) for c in self.transitions.values()),
+            "ObsQ: pc=0x%X addr=0x%X stride=%d inter=%s",
+            pc,
+            addr,
+            stride,
+            str(inter_arrival),
+        )
+        return rec
+
+    def history(self, access: GraphMemoryAccess, k: int = 4) -> List[ObsRecord]:
+        pc = access.pc
+        dq = self._hist.get(pc, deque())
+        return list(dq)[-k:]
+
+
+# ---------------------- EwmaCalculator --------------------------------------
+
+from enum import Enum, auto
+
+
+class Metric(Enum):
+    STRIDE = auto()
+    LATENCY = auto()
+    INTER_ARRIVAL = auto()
+    PRESSURE = auto()
+
+
+@dataclass
+class EwmaState:
+    value: float = 0.0
+    initialized: bool = False
+
+
+class EwmaCalculator:
+    """
+    Lightweight per-(pc,metric) EWMA bank.
+    - alpha controls smoothing.
+    - get_parameters(access) returns dict of current metric values (or None).
+    """
+
+    def __init__(self, alpha: float = 0.25):
+        assert 0.0 < alpha <= 1.0
+        self.alpha = float(alpha)
+        self._bank: Dict[Tuple[int, Metric], EwmaState] = {}
+
+    def clear(self) -> None:
+        self._bank.clear()
+
+    def _key(self, pc: int, metric: Metric):
+        return (int(pc), metric)
+
+    def update(self, pc: int, metric: Metric, sample: float) -> None:
+        k = self._key(pc, metric)
+        st = self._bank.get(k)
+        if st is None:
+            self._bank[k] = EwmaState(value=float(sample), initialized=True)
+        else:
+            st.value = self.alpha * float(sample) + (1.0 - self.alpha) * st.value
+            st.initialized = True
+        logger.debug(
+            "EWMA: pc=0x%X metric=%s -> %.3f", pc, metric.name, self._bank[k].value
         )
 
-    # ========================= Public API =========================
-    def progress(self, access: MemoryAccess, prefetch_hit: bool) -> List[int]:
-        """
-        Update the transition graph and (on event) return prefetch addresses.
-        """
-        addr = getattr(access, "address", None)
-        if addr is None:
-            return []
+    def get(self, pc: int, metric: Metric) -> Optional[float]:
+        st = self._bank.get(self._key(pc, metric))
+        return st.value if (st and st.initialized) else None
 
-        self.events += 1
+    def get_parameters(self, pc: int) -> Dict[Metric, Optional[float]]:
+        return {m: self.get(pc, m) for m in Metric}
 
-        # 1) Update the transition graph with the last->current edge
-        if self.last_addr is not None and self.last_addr != addr:
-            self._observe_edge(self.last_addr, addr)
 
-        # 2) Decide whether this access triggers prefetching
-        triggered = self._should_trigger(access, prefetch_hit)
-        self.last_addr = addr
+# ---------------------- TransitionTable (Correlation) -----------------------
 
-        if not triggered:
-            return []
 
-        # 3) Generate prefetch candidates by walking graph successors
-        candidates = self._select_successors(
-            addr, self.prefetch_degree, self.lookahead_hops
-        )
+class TransitionTable:
+    """
+    Stores observed transitions A -> B with counters and provides top-K per A.
+    Supports optional periodic decay (aging).
+    """
 
-        # 4) Filter duplicates and mark outstanding
-        issued: List[int] = []
-        for c in candidates:
-            if c not in self.outstanding and c != addr:
-                issued.append(c)
-                self.outstanding.add(c)
-                if len(issued) >= self.prefetch_degree:
-                    break
+    def __init__(
+        self,
+        max_successors_per_node: int = 8,
+        min_edge_support: int = 2,
+        aging_half_life_events: Optional[int] = None,
+    ):
+        self.transitions: Dict[int, Counter] = defaultdict(Counter)
+        self.topk_cache: Dict[int, List[Tuple[int, int]]] = {}
+        self._dirty: Set[int] = set()
+        self.max_successors_per_node = int(max_successors_per_node)
+        self.min_edge_support = int(min_edge_support)
+        self.events = 0
+        self.aging_half_life_events = aging_half_life_events
 
-        if issued:
-            logger.debug("GraphPrefetcher: addr=%d -> prefetch=%s", addr, issued)
-        return issued
+    def clear(self) -> None:
+        self.transitions.clear()
+        self.topk_cache.clear()
+        self._dirty.clear()
+        self.events = 0
 
-    # Optionally call when a prefetched line is confirmed/installed
-    def prefetch_completed(self, addr: int):
-        self.outstanding.discard(addr)
-
-    # Optional hook if your cache tells us about hits to prefetched lines
-    def notify_prefetch_hit(self, addr: int):
-        self.outstanding.discard(addr)
-
-    # ========================= Internals =========================
-    def _should_trigger(self, access: MemoryAccess, prefetch_hit: bool) -> bool:
-        if not self.trigger_on_miss_only:
-            return True
-        # Prefer simulator-provided "is_cache_miss" if available
-        is_miss = getattr(access, "is_cache_miss", None)
-        if is_miss is not None:
-            return bool(is_miss) and not bool(prefetch_hit)
-        # Fallback heuristic: trigger when not a prefetch-hit
-        return not bool(prefetch_hit)
-
-    def _observe_edge(self, a: int, b: int):
-        """
-        Observe transition a->b; update counts, aging, and maintain top-K per node.
-        """
-        # (Optional) limit the graph size
-        if (
-            self.max_nodes is not None
-            and len(self.transitions) >= self.max_nodes
-            and a not in self.transitions
-        ):
+    def observe_edge(self, a: int, b: int) -> None:
+        if a == b:
             return
-
         counts = self.transitions[a]
         before = counts[b]
         counts[b] += 1
-
         if before == 0:
-            # New edge
-            self.edge_count += 1
-            if self.max_edges is not None and self.edge_count > self.max_edges:
-                # crude pruning: drop least-common edge in this node
-                victim, vc = min(counts.items(), key=lambda kv: kv[1])
-                counts[victim] -= 1
-                if counts[victim] <= 0:
-                    del counts[victim]
-                    self.edge_count -= 1
+            pass
+        self._dirty.add(a)
+        self.events += 1
+        if self.aging_half_life_events and (
+            self.events % self.aging_half_life_events == 0
+        ):
+            self._decay_all()
 
-        # Aging to keep graph fresh
-        if self.aging_half_life_events:
-            self._maybe_age_node(a)
+    def _decay_all(self) -> None:
+        to_clear = []
+        for node, cnt in list(self.transitions.items()):
+            for succ in list(cnt.keys()):
+                newv = (cnt[succ] + 1) // 2
+                if newv <= 0:
+                    del cnt[succ]
+                else:
+                    cnt[succ] = newv
+            if not cnt:
+                to_clear.append(node)
+        for n in to_clear:
+            del self.transitions[n]
+        self.topk_cache.clear()
+        self._dirty.clear()
+        logger.info("TransitionTable: decay applied")
 
-        # Maintain top-K for quick selection later (lazy mark)
-        self._dirty_nodes.add(a)
-
-    def _maybe_age_node(self, a: int):
-        """
-        Exponential decay towards half-life in 'aging_half_life_events' accesses.
-        Implemented as occasional downscale of all edges from node a.
-        """
-        # Cheap periodic aging: every half-life events, halve counts on dirty nodes
-        if self.events % self.aging_half_life_events == 0:
-            for node, counter in self.transitions.items():
-                # halve (round up) to retain support ordering but fade old paths
-                to_del = []
-                for succ in list(counter.keys()):
-                    newc = (counter[succ] + 1) // 2
-                    if newc <= 0:
-                        to_del.append(succ)
-                    else:
-                        counter[succ] = newc
-                for s in to_del:
-                    del counter[s]
-            # Everything became stale; top-k views must be rebuilt lazily
-            self.topk.clear()
-            self._dirty_nodes.clear()
-
-    def _refresh_topk_if_needed(self, a: int):
-        if a not in self._dirty_nodes:
+    def _refresh_topk(self, a: int) -> None:
+        if a not in self._dirty:
             return
-        counts = self.transitions.get(a)
-        if not counts:
-            self.topk[a] = []
-            self._dirty_nodes.discard(a)
+        cnt = self.transitions.get(a)
+        if not cnt:
+            self.topk_cache[a] = []
+            self._dirty.discard(a)
             return
-        # Keep only max_successors_per_node best successors
         best = heapq.nlargest(
-            self.max_successors_per_node, counts.items(), key=lambda kv: kv[1]
+            self.max_successors_per_node, cnt.items(), key=lambda kv: kv[1]
         )
-        # Store as a sorted list of (count, succ) descending by count
-        self.topk[a] = [(c, s) for (s, c) in best if c >= self.min_edge_support]
-        self._dirty_nodes.discard(a)
+        # keep only edges with at least min_edge_support
+        filtered = [(c, s) for (s, c) in best if c >= self.min_edge_support]
+        self.topk_cache[a] = filtered
+        self._dirty.discard(a)
 
-    def _select_successors(self, start: int, budget: int, hops: int) -> List[int]:
-        """
-        Best-first expansion from 'start' using per-node top-K lists.
-        Returns a ranked list of candidate addresses (may exceed budget before dedup).
-        """
+    def topk_for(self, a: int) -> List[Tuple[int, int]]:
+        self._refresh_topk(a)
+        return self.topk_cache.get(a, [])
+
+
+# ---------------------- AddressGenerator / PPU -------------------------------
+
+
+class AddressGenerator:
+    """
+    Graph-aware address generator (PPU).
+    Uses TransitionTable.topk_for(node) and performs best-first expansion up to hops.
+    Returns ordered candidate list (may exceed budget; scheduler trims).
+    """
+
+    def __init__(self, transition_table: TransitionTable):
+        self.tt = transition_table
+
+    def select_successors(self, start: int, budget: int, hops: int) -> List[int]:
         if budget <= 0:
             return []
         results: List[int] = []
-        seen: Set[int] = set([start])
+        seen: Set[int] = {start}
+        pq: List[Tuple[int, int, int]] = []  # (-score, node, depth)
 
-        # Priority queue of (-score, node, depth). Score = cumulative min-edge-count along path.
-        # Using counts as a simple proxy for probability; more advanced scoring could combine log probs.
-        pq: List[Tuple[int, int, int]] = []
-
-        # Seed with immediate successors
-        self._refresh_topk_if_needed(start)
-        for c, succ in self.topk.get(start, []):
+        # seed
+        self.tt._refresh_topk(start)
+        for cnt, succ in self.tt.topk_for(start):
             if succ in seen:
                 continue
             seen.add(succ)
-            heapq.heappush(pq, (-c, succ, 1))
+            heapq.heappush(pq, (-cnt, succ, 1))
             results.append(succ)
             if len(results) >= budget:
                 return results
 
-        # Expand to next hops if allowed
         while pq and hops > 1 and len(results) < budget:
             negscore, node, depth = heapq.heappop(pq)
             if depth >= hops:
                 continue
-            self._refresh_topk_if_needed(node)
-            for c, succ in self.topk.get(node, []):
+            self.tt._refresh_topk(node)
+            for cnt, succ in self.tt.topk_for(node):
                 if succ in seen:
                     continue
                 seen.add(succ)
-                # Combine score conservatively (min along path) to avoid overestimating long chains
-                newscore = min(-negscore, c)
+                newscore = min(-negscore, cnt)
                 heapq.heappush(pq, (-newscore, succ, depth + 1))
                 results.append(succ)
                 if len(results) >= budget:
                     break
-
         return results
+
+
+# ---------------------- Scheduler -------------------------------------------
+
+
+class Scheduler:
+    """
+    Simple scheduler that throttles using EWMA PRESSURE and outstanding count.
+    - pressure_threshold: if EWMA_PRESSURE >= threshold, block new prefetches.
+    - outstanding_limit: absolute cap on outstanding prefetches.
+    """
+
+    def __init__(self, pressure_threshold: float = 8.0, outstanding_limit: int = 8192):
+        self.pressure_threshold = float(pressure_threshold)
+        self.outstanding_limit = int(outstanding_limit)
+
+    def allow_issue(
+        self, ewmas: Dict[Metric, Optional[float]], outstanding_count: int
+    ) -> bool:
+        pr = ewmas.get(Metric.PRESSURE)
+        if pr is not None and pr >= self.pressure_threshold:
+            logger.debug(
+                "Scheduler: blocked by pressure %.3f >= %.3f",
+                pr,
+                self.pressure_threshold,
+            )
+            return False
+        if outstanding_count >= self.outstanding_limit:
+            logger.debug(
+                "Scheduler: blocked by outstanding limit %d >= %d",
+                outstanding_count,
+                self.outstanding_limit,
+            )
+            return False
+        return True
+
+    def select(
+        self,
+        candidates: List[int],
+        ewmas: Dict[Metric, Optional[float]],
+        outstanding_count: int,
+        degree: int,
+    ) -> List[int]:
+        if not self.allow_issue(ewmas, outstanding_count):
+            return []
+        # simple selection: return first N candidates
+        return candidates[:degree]
+
+
+# ---------------------- OutstandingTracker ----------------------------------
+
+
+class OutstandingTracker:
+    """
+    Tracks outstanding prefetches and classifies hits as late/useful.
+    Stores timestamp when recorded to compute lateness.
+    """
+
+    def __init__(self, limit: int = 8192, late_time_threshold: float = 0.01):
+        self.limit = int(limit)
+        self._map: Dict[int, float] = {}  # addr -> ts
+        self._queue: Deque[int] = deque()
+        self.late_time_threshold = float(late_time_threshold)
+
+    def record(self, addr: int) -> None:
+        a = int(addr)
+        if a in self._map:
+            return
+        self._map[a] = time.time()
+        self._queue.append(a)
+        if len(self._queue) > self.limit:
+            old = self._queue.popleft()
+            self._map.pop(old, None)
+
+    def credit_if_present(self, addr: int) -> Optional[bool]:
+        a = int(addr)
+        ts = self._map.pop(a, None)
+        if ts is None:
+            return None
+        try:
+            self._queue.remove(a)
+        except ValueError:
+            pass
+        is_late = (time.time() - ts) >= self.late_time_threshold
+        return is_late
+
+    def discard(self, addr: int) -> None:
+        self._map.pop(int(addr), None)
+        try:
+            self._queue.remove(int(addr))
+        except ValueError:
+            pass
+
+    def __len__(self) -> int:
+        return len(self._map)
+
+    def clear(self) -> None:
+        self._map.clear()
+        self._queue.clear()
+
+
+# ---------------------- Orchestrator: GraphPrefetcherHW ---------------------
+
+
+@dataclass
+class GraphPrefetcher:
+    """
+    Hardware-like graph prefetcher that wires components:
+      AddrFilter -> ObservationQueue -> EwmaCalculator -> AddressGenerator -> Scheduler -> OutstandingTracker
+    """
+
+    # tunables
+    trigger_on_miss_only: bool = True
+    lookahead_hops: int = 2
+    prefetch_degree: int = 8
+    max_successors_per_node: int = 8
+    min_edge_support: int = 2
+    aging_half_life_events: Optional[int] = None
+    line_size: int = 64
+
+    def __post_init__(self):
+        self.filter = AddrFilter()
+        self.obsq = ObservationQueue(capacity_per_pc=8)
+        self.ewma = EwmaCalculator(alpha=0.25)
+        self.transitions = TransitionTable(
+            max_successors_per_node=self.max_successors_per_node,
+            min_edge_support=self.min_edge_support,
+            aging_half_life_events=self.aging_half_life_events,
+        )
+        self.agg = AddressGenerator(self.transitions)
+        self.scheduler = Scheduler(pressure_threshold=8.0, outstanding_limit=8192)
+        self.outstanding = OutstandingTracker(limit=8192, late_time_threshold=0.01)
+
+        # last address seen globally (for edge observation)
+        self._last_addr: Optional[int] = None
+
+    def init(self) -> None:
+        self.filter.clear()
+        self.obsq.clear()
+        self.ewma.clear()
+        self.transitions.clear()
+        self.outstanding.clear()
+        self._last_addr = None
+        logger.info("GraphPrefetcherHW: init done")
+
+    def close(self) -> None:
+        logger.info("GraphPrefetcherHW: close")
+
+    def _addr_of(self, access: GraphMemoryAccess) -> int:
+        return access.address
+
+    def _should_trigger(self, access, prefetch_hit: bool) -> bool:
+        if not self.trigger_on_miss_only:
+            return True
+        return not bool(prefetch_hit)
+
+    def progress(self, access: GraphMemoryAccess, prefetch_hit: bool) -> List[int]:
+        """
+        Handle one memory access event and possibly produce prefetch addresses.
+        """
+        if not self.filter.pass_filter(access):
+            return []
+
+        addr = access.address
+        pc = access.pc
+
+        # Update observation queue and EWMA
+        rec = self.obsq.update(access, latency=access.accessLatency)
+        if rec.stride is not None:
+            self.ewma.update(pc, Metric.STRIDE, rec.stride)
+        if rec.inter_arrival is not None:
+            self.ewma.update(pc, Metric.INTER_ARRIVAL, rec.inter_arrival)
+        if access.accessLatency is not None:
+            self.ewma.update(pc, Metric.LATENCY, access.accessLatency)
+
+        # Observe edge from last global address -> current
+        if self._last_addr is not None and self._last_addr != addr:
+            self.transitions.observe_edge(self._last_addr, addr)
+        self._last_addr = addr
+
+        self.transitions.events += (
+            0  # keep signature (transitions maintains its own events)
+        )
+
+        # Credit outstanding prefetches if this was a prefetch-hit
+        if prefetch_hit:
+            late = self.outstanding.credit_if_present(addr)
+            if late is not None:
+                # credit transition or delta if desired; here credit address successor link
+                # find head entry for predecessor: we use last observed predecessor heuristics:
+                # best-effort: if previous obs exists for this PC, credit that mapping
+                hist = self.obsq.history(access, k=2)
+                if hist:
+                    pred = hist[-1].addr if len(hist) >= 2 else None
+                    if pred is not None:
+                        self.transitions.observe_edge(pred, addr)
+                logger.debug(
+                    "GraphPrefetcherHW: prefetch_hit credited addr=0x%X late=%s",
+                    addr,
+                    str(late),
+                )
+
+        # Generate candidate successors using AddressGenerator / PPU
+        candidates = self.agg.select_successors(
+            start=addr, budget=self.prefetch_degree * 2, hops=self.lookahead_hops
+        )
+        # get ewma params for scheduler gating
+        ewma_params = self.ewma.get_parameters(pc)
+        # ask scheduler which to accept (respecting outstanding)
+        accepted = self.scheduler.select(
+            candidates, ewma_params, len(self.outstanding), degree=self.prefetch_degree
+        )
+
+        # record outstanding and return
+        issued: List[int] = []
+        for tgt in accepted:
+            # align to line
+            aligned = (tgt // self.line_size) * self.line_size
+            if aligned not in self.outstanding._map and aligned != addr:
+                self.outstanding.record(aligned)
+                issued.append(aligned)
+                if len(issued) >= self.prefetch_degree:
+                    break
+
+        if issued:
+            logger.debug(
+                "GraphPrefetcherHW: issued prefetches %s for trigger 0x%X",
+                [hex(x) for x in issued],
+                addr,
+            )
+        return issued
+
+    def prefetch_completed(self, addr: int) -> None:
+        self.outstanding.discard(addr)
+
+    def notify_prefetch_hit(self, addr: int) -> None:
+        self.outstanding.discard(addr)
