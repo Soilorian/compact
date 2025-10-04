@@ -10,12 +10,6 @@ logger = logging.getLogger("markov_predictor")
 logger.addHandler(logging.NullHandler())
 
 
-@dataclass
-class MemoryAccess:
-    address: int
-    pc: int
-
-
 class HistoryBuffer:
     """
     Sliding buffer holding last `max_order` addresses.
