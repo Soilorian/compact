@@ -1,5 +1,5 @@
 """
-TEMPO (Translation-Enabled Memory Prefetching Optimizations) - Python implementation
+TEMPO (Translation-Enabled Memory Prefetching Optimizations) by Abhishek Bhattacharjee
 
 Paper: "Translation-Triggered Prefetching" by Abhishek Bhattacharjee
 Conference: ASPLOS '17
@@ -43,29 +43,24 @@ logger = logging.getLogger("prefetchlenz.prefetchingalgorithm.impl.tempo")
 # ----------------------
 CONFIG = {
     # TLB Configuration
-    "TLB_SIZE": 64,                      # Data TLB entries
-    "TLB_ASSOC": 4,                      # TLB associativity
-
+    "TLB_SIZE": 64,  # Data TLB entries
+    "TLB_ASSOC": 4,  # TLB associativity
     # Memory Configuration
-    "PAGE_SIZE_4KB": 4096,               # 4KB base page size
-    "PAGE_SIZE_2MB": 2 * 1024 * 1024,    # 2MB superpage size
-    "CACHE_LINE_SIZE": 64,               # 64-byte cache lines
-    "SUPPORT_2MB_PAGES": True,           # Enable 2MB superpage support
-
+    "PAGE_SIZE_4KB": 4096,  # 4KB base page size
+    "PAGE_SIZE_2MB": 2 * 1024 * 1024,  # 2MB superpage size
+    "CACHE_LINE_SIZE": 64,  # 64-byte cache lines
+    "SUPPORT_2MB_PAGES": True,  # Enable 2MB superpage support
     # Page Table Configuration
-    "PT_LEVELS": 4,                      # x86-64 4-level page tables
-    "PT_CACHE_SIZE": 32,                 # MMU cache for upper PT levels
-
+    "PT_LEVELS": 4,  # x86-64 4-level page tables
+    "PT_CACHE_SIZE": 32,  # MMU cache for upper PT levels
     # Prefetch Configuration
-    "PREFETCH_DEGREE": 1,                # Number of lines to prefetch per trigger
-    "ENABLE_PREFETCHING": True,          # Master switch for prefetching
-
+    "PREFETCH_DEGREE": 1,  # Number of lines to prefetch per trigger
+    "ENABLE_PREFETCHING": True,  # Master switch for prefetching
     # Cold Translation Detection
-    "COLD_TRANSLATION_THRESHOLD": 20,    # Access count threshold for "cold" translations
-    "TRACK_TRANSLATION_REUSE": True,     # Track translation reuse for cold detection
-
+    "COLD_TRANSLATION_THRESHOLD": 20,  # Access count threshold for "cold" translations
+    "TRACK_TRANSLATION_REUSE": True,  # Track translation reuse for cold detection
     # Metrics
-    "TRACK_METRICS": True,               # Enable detailed metrics tracking
+    "TRACK_METRICS": True,  # Enable detailed metrics tracking
 }
 
 
@@ -75,6 +70,7 @@ CONFIG = {
 @dataclass
 class TLBEntry:
     """TLB entry storing virtual-to-physical translation."""
+
     virtual_page: int = 0
     physical_page: int = 0
     page_size: int = CONFIG["PAGE_SIZE_4KB"]  # 4KB or 2MB
@@ -89,6 +85,7 @@ class TLBEntry:
 @dataclass
 class PageTableEntry:
     """Page table entry in the simulated page table hierarchy."""
+
     virtual_page: int = 0
     physical_page: int = 0
     level: int = 1  # PT level (1=L1/leaf, 2=L2, 3=L3, 4=L4)
@@ -100,6 +97,7 @@ class PageTableEntry:
 @dataclass
 class TempoMetrics:
     """Metrics for TEMPO prefetcher performance."""
+
     total_accesses: int = 0
     tlb_hits: int = 0
     tlb_misses: int = 0
@@ -140,13 +138,17 @@ class TLB:
         ]
         self.timestamp = 0
 
-        logger.debug(f"TLB initialized: {size} entries, {associativity}-way, {self.num_sets} sets")
+        logger.debug(
+            f"TLB initialized: {size} entries, {associativity}-way, {self.num_sets} sets"
+        )
 
     def _get_set_index(self, virtual_page: int) -> int:
         """Get set index from virtual page number."""
         return virtual_page % self.num_sets
 
-    def lookup(self, virtual_page: int, page_size: int = CONFIG["PAGE_SIZE_4KB"]) -> Optional[TLBEntry]:
+    def lookup(
+        self, virtual_page: int, page_size: int = CONFIG["PAGE_SIZE_4KB"]
+    ) -> Optional[TLBEntry]:
         """
         Lookup virtual page in TLB.
 
@@ -166,14 +168,20 @@ class TLB:
                 self.lru[set_idx][way] = self.timestamp
                 self.timestamp += 1
                 entry.access_count += 1
-                logger.debug(f"TLB hit: vpn={virtual_page:#x} -> ppn={entry.physical_page:#x}")
+                logger.debug(
+                    f"TLB hit: vpn={virtual_page:#x} -> ppn={entry.physical_page:#x}"
+                )
                 return entry
 
         logger.debug(f"TLB miss: vpn={virtual_page:#x}")
         return None
 
-    def insert(self, virtual_page: int, physical_page: int,
-               page_size: int = CONFIG["PAGE_SIZE_4KB"]) -> None:
+    def insert(
+        self,
+        virtual_page: int,
+        physical_page: int,
+        page_size: int = CONFIG["PAGE_SIZE_4KB"],
+    ) -> None:
         """
         Insert translation into TLB.
 
@@ -194,7 +202,9 @@ class TLB:
                 entry.access_count = 0  # Reset on refill
                 self.lru[set_idx][way] = self.timestamp
                 self.timestamp += 1
-                logger.debug(f"TLB update: vpn={virtual_page:#x} -> ppn={physical_page:#x}")
+                logger.debug(
+                    f"TLB update: vpn={virtual_page:#x} -> ppn={physical_page:#x}"
+                )
                 return
 
         # Find invalid entry
@@ -205,11 +215,13 @@ class TLB:
                     physical_page=physical_page,
                     page_size=page_size,
                     valid=True,
-                    access_count=0
+                    access_count=0,
                 )
                 self.lru[set_idx][way] = self.timestamp
                 self.timestamp += 1
-                logger.debug(f"TLB insert: vpn={virtual_page:#x} -> ppn={physical_page:#x}")
+                logger.debug(
+                    f"TLB insert: vpn={virtual_page:#x} -> ppn={physical_page:#x}"
+                )
                 return
 
         # Evict LRU entry
@@ -223,11 +235,13 @@ class TLB:
             physical_page=physical_page,
             page_size=page_size,
             valid=True,
-            access_count=0
+            access_count=0,
         )
         self.lru[set_idx][lru_way] = self.timestamp
         self.timestamp += 1
-        logger.debug(f"TLB insert (evicted): vpn={virtual_page:#x} -> ppn={physical_page:#x}")
+        logger.debug(
+            f"TLB insert (evicted): vpn={virtual_page:#x} -> ppn={physical_page:#x}"
+        )
 
     def invalidate(self, virtual_page: int) -> None:
         """Invalidate TLB entry for virtual page."""
@@ -280,11 +294,14 @@ class PageTableWalker:
 
             # Decide if this should be a superpage (simple heuristic: aligned pages)
             is_superpage = (
-                CONFIG["SUPPORT_2MB_PAGES"] and
-                virtual_page % (CONFIG["PAGE_SIZE_2MB"] // CONFIG["PAGE_SIZE_4KB"]) == 0
+                CONFIG["SUPPORT_2MB_PAGES"]
+                and virtual_page % (CONFIG["PAGE_SIZE_2MB"] // CONFIG["PAGE_SIZE_4KB"])
+                == 0
             )
 
-            page_size = CONFIG["PAGE_SIZE_2MB"] if is_superpage else CONFIG["PAGE_SIZE_4KB"]
+            page_size = (
+                CONFIG["PAGE_SIZE_2MB"] if is_superpage else CONFIG["PAGE_SIZE_4KB"]
+            )
 
             entry = PageTableEntry(
                 virtual_page=virtual_page,
@@ -292,10 +309,12 @@ class PageTableWalker:
                 level=1,  # Leaf PT entry
                 valid=True,
                 access_count=0,
-                is_superpage=is_superpage
+                is_superpage=is_superpage,
             )
             self.page_table[virtual_page] = entry
-            logger.debug(f"PTW: Allocated new translation vpn={virtual_page:#x} -> ppn={physical_page:#x}")
+            logger.debug(
+                f"PTW: Allocated new translation vpn={virtual_page:#x} -> ppn={physical_page:#x}"
+            )
 
         entry = self.page_table[virtual_page]
         entry.access_count += 1
@@ -305,7 +324,9 @@ class PageTableWalker:
         is_cold = entry.access_count <= CONFIG["COLD_TRANSLATION_THRESHOLD"]
 
         if is_cold:
-            logger.debug(f"PTW: Cold translation detected vpn={virtual_page:#x} (count={entry.access_count})")
+            logger.debug(
+                f"PTW: Cold translation detected vpn={virtual_page:#x} (count={entry.access_count})"
+            )
 
         return entry, is_cold
 
@@ -315,7 +336,9 @@ class PageTableWalker:
         For simulation, use a simple mapping function.
         """
         # Use hash function to create pseudo-random but deterministic mapping
-        return (virtual_page * 2654435761) % (2**20)  # Limit to reasonable physical address space
+        return (virtual_page * 2654435761) % (
+            2**20
+        )  # Limit to reasonable physical address space
 
 
 # ----------------------
@@ -365,18 +388,24 @@ class TempoPrefetcher(PrefetchAlgorithm):
         self.initialized = True
         logger.info("TempoPrefetcher initialized")
 
-    def _get_virtual_page(self, address: int, page_size: int = CONFIG["PAGE_SIZE_4KB"]) -> int:
+    def _get_virtual_page(
+        self, address: int, page_size: int = CONFIG["PAGE_SIZE_4KB"]
+    ) -> int:
         """Extract virtual page number from address."""
         return address // page_size
 
-    def _get_page_offset(self, address: int, page_size: int = CONFIG["PAGE_SIZE_4KB"]) -> int:
+    def _get_page_offset(
+        self, address: int, page_size: int = CONFIG["PAGE_SIZE_4KB"]
+    ) -> int:
         """Extract offset within page from address."""
         return address % page_size
 
     def _is_recently_translated(self, virtual_page: int, window: int = 100) -> bool:
         """Check if this virtual page was recently translated (within window accesses)."""
         if virtual_page in self.recent_translation_times:
-            return (self.access_count - self.recent_translation_times[virtual_page]) < window
+            return (
+                self.access_count - self.recent_translation_times[virtual_page]
+            ) < window
         return False
 
     def progress(self, access: MemoryAccess, prefetch_hit: bool) -> List[int]:
@@ -403,8 +432,10 @@ class TempoPrefetcher(PrefetchAlgorithm):
         virtual_page = self._get_virtual_page(addr)
         page_offset = self._get_page_offset(addr)
 
-        logger.debug(f"Access #{self.access_count}: addr={addr:#x}, pc={pc:#x}, "
-                    f"vpn={virtual_page:#x}, offset={page_offset}")
+        logger.debug(
+            f"Access #{self.access_count}: addr={addr:#x}, pc={pc:#x}, "
+            f"vpn={virtual_page:#x}, offset={page_offset}"
+        )
 
         # Check if this access hit a prefetch
         if addr in self.prefetched_addresses:
@@ -440,7 +471,11 @@ class TempoPrefetcher(PrefetchAlgorithm):
             return []
 
         # Fill TLB with translation
-        page_size = CONFIG["PAGE_SIZE_2MB"] if pt_entry.is_superpage else CONFIG["PAGE_SIZE_4KB"]
+        page_size = (
+            CONFIG["PAGE_SIZE_2MB"]
+            if pt_entry.is_superpage
+            else CONFIG["PAGE_SIZE_4KB"]
+        )
         self.tlb.insert(virtual_page, pt_entry.physical_page, page_size)
 
         # Track recent translation
@@ -463,9 +498,11 @@ class TempoPrefetcher(PrefetchAlgorithm):
             self.prefetched_addresses.add(physical_address)
             self.metrics.prefetches_issued += 1
 
-            logger.info(f"TEMPO prefetch triggered: "
-                       f"vpn={virtual_page:#x} -> ppn={pt_entry.physical_page:#x}, "
-                       f"prefetch_addr={physical_address:#x}")
+            logger.info(
+                f"TEMPO prefetch triggered: "
+                f"vpn={virtual_page:#x} -> ppn={pt_entry.physical_page:#x}, "
+                f"prefetch_addr={physical_address:#x}"
+            )
 
             # Optionally prefetch additional cache lines (prefetch degree > 1)
             for i in range(1, CONFIG["PREFETCH_DEGREE"]):
@@ -510,8 +547,12 @@ class TempoPrefetcher(PrefetchAlgorithm):
 
         logger.info(f"Total accesses: {m.total_accesses}")
         if m.total_accesses > 0:
-            logger.info(f"TLB hits: {m.tlb_hits} ({m.tlb_hits/m.total_accesses*100:.2f}%)")
-            logger.info(f"TLB misses: {m.tlb_misses} ({m.tlb_misses/m.total_accesses*100:.2f}%)")
+            logger.info(
+                f"TLB hits: {m.tlb_hits} ({m.tlb_hits / m.total_accesses * 100:.2f}%)"
+            )
+            logger.info(
+                f"TLB misses: {m.tlb_misses} ({m.tlb_misses / m.total_accesses * 100:.2f}%)"
+            )
         else:
             logger.info(f"TLB hits: {m.tlb_hits}")
             logger.info(f"TLB misses: {m.tlb_misses}")

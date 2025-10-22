@@ -1,3 +1,7 @@
+"""
+An Event-Triggered Programmable Prefetcher for Irregular Workloads by Ainsworth et al.
+"""
+
 from __future__ import annotations
 
 import logging

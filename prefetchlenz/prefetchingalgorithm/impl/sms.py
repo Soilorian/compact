@@ -1,5 +1,5 @@
 """
-Spatial Memory Streaming (SMS) - software implementation mapped to the provided framework.
+Spatial Memory Streaming (SMS) by Somogyi et al.
 
 This file implements:
   - AGT (filter + accumulation) with deterministic LRU eviction

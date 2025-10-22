@@ -1,4 +1,7 @@
-# tcp_prefetcher.py
+"""
+TCP Tag Correlating Prefetchers by Hu et al.
+"""
+
 from __future__ import annotations
 
 import logging

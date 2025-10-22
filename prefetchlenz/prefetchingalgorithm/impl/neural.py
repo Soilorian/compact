@@ -1,4 +1,7 @@
-# hierarchical_prefetcher.py
+"""
+A Hierarchical Neural Model of Data Prefetching by Shi et al.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +9,8 @@ import math
 from collections import defaultdict
 from typing import Dict, List, Optional
 
-from prefetchlenz.prefetchingalgorithm.impl.markovpredictor import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.hierarchical")
 logger.addHandler(logging.NullHandler())
@@ -120,7 +124,7 @@ def softmax_scores(score_map: Dict[int, float]) -> Dict[int, float]:
     return {k: v / s for k, v in exps.items()}
 
 
-class HierarchicalNeuralPrefetcher:
+class HierarchicalNeuralPrefetcher(PrefetchAlgorithm):
     """
     Lightweight, testable approximation of the "Hierarchical Neural Model of Data Prefetching".
     This is a small, online learner with two levels:

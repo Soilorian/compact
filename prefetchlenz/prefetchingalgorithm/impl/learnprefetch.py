@@ -1,5 +1,5 @@
 """
-Learning Memory Access Patterns prefetcher (PyTorch LSTM model).
+Learning Memory Access Patterns prefetcher by Hashemi et al.
 
 Implements a runtime inference wrapper around an LSTM that predicts address deltas
 (top-K) given a stream of misses. Designed to fit the repo's PrefetchAlgorithm API:

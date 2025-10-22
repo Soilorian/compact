@@ -1,3 +1,7 @@
+"""
+Dynamic Hot Data Stream Prefetching for General-Purpose Programs by Chilimbi et al.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,6 +10,7 @@ from dataclasses import dataclass
 from typing import Deque, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.hds")
 logger.addHandler(logging.NullHandler())
@@ -267,9 +272,9 @@ class DFSM:
 # ----------------------- HdsPrefetcher (orchestrator) -----------------------
 
 
-class HdsPrefetcher:
+class HdsPrefetcher(PrefetchAlgorithm):
     """
-    Dynamic Hot Data Stream Prefetcher (software-side).
+    Dynamic Hot Data Stream Prefetcher.
     Controls profiling, stream mining, DFSM building, and prefix matching.
     `progress(access, prefetch_hit)` returns the list of predicted addresses (ints)
     for that access. Also supports a prefetch callback via set_prefetch_callback(cb).

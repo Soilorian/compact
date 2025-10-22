@@ -1,4 +1,7 @@
-# file: prefetchlenz/prefetchingalgorithm/impl/f_tdc_prefetcher.py
+"""
+Efficient Foot-print Caching for Tagless DRAM Caches by Jang et al.
+"""
+
 from __future__ import annotations
 
 import logging

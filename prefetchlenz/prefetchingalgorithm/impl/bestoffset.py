@@ -1,3 +1,7 @@
+"""
+Best-Offset Hardware Prefetching by Pierre Michaud
+"""
+
 from typing import List
 
 from prefetchlenz.cache.Cache import Cache

@@ -1,3 +1,7 @@
+"""
+Temporal Prefetching Without the Off-Chip Metadata by Wu et al.
+"""
+
 import logging
 from dataclasses import dataclass
 from typing import List, Optional

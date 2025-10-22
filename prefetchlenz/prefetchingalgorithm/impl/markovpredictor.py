@@ -1,8 +1,10 @@
-# markov_predictor.py
+"""
+Prefetching using Markov Predictors by Joseph et al.
+"""
+
 import logging
 from collections import deque
-from dataclasses import dataclass
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Deque, Dict, List, Tuple
 
 from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 

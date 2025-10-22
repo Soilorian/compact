@@ -1,7 +1,5 @@
 """
-Bingo Spatial Prefetcher - Python implementation
-
-Place this file in: prefetchlenz/prefetchingalgorithm/impl/bingo.py
+Bingo Spatial Data Prefetcher by Bakhshalipour et al.
 
 Overview:
 - Implements spatial pattern prefetching using region-based tracking
@@ -84,6 +82,7 @@ def rotate_pattern(pattern: List[bool], n: int) -> List[bool]:
 @dataclass
 class CacheEntry:
     """Generic cache entry."""
+
     key: int
     valid: bool
     data: any
@@ -223,6 +222,7 @@ class LRUFullyAssociativeCache:
 @dataclass
 class FilterTableData:
     """Data stored in filter table."""
+
     pc: int
     offset: int
 
@@ -242,7 +242,9 @@ class FilterTable:
         """Insert new filter entry."""
         data = FilterTableData(pc=pc, offset=offset)
         self.cache.insert(region_num, data)
-        logger.debug(f"FilterTable: insert region {region_num:#x}, pc {pc:#x}, offset {offset}")
+        logger.debug(
+            f"FilterTable: insert region {region_num:#x}, pc {pc:#x}, offset {offset}"
+        )
 
     def erase(self, region_num: int) -> Optional[FilterTableData]:
         """Remove entry for region."""
@@ -255,6 +257,7 @@ class FilterTable:
 @dataclass
 class AccumulationTableData:
     """Data stored in accumulation table."""
+
     pc: int
     offset: int
     pattern: List[bool]
@@ -282,7 +285,9 @@ class AccumulationTable:
             data.pattern[offset] = True
         return True
 
-    def insert(self, filter_data: FilterTableData, region_num: int) -> Optional[AccumulationTableData]:
+    def insert(
+        self, filter_data: FilterTableData, region_num: int
+    ) -> Optional[AccumulationTableData]:
         """Insert from filter table entry, return evicted entry if any."""
         # Create new pattern with trigger bit set
         pattern = [False] * self.pattern_len
@@ -290,14 +295,15 @@ class AccumulationTable:
             pattern[filter_data.offset] = True
 
         data = AccumulationTableData(
-            pc=filter_data.pc,
-            offset=filter_data.offset,
-            pattern=pattern
+            pc=filter_data.pc, offset=filter_data.offset, pattern=pattern
         )
 
         # Check if we need to evict
         evicted = None
-        if len(self.cache.entries) >= self.size and region_num not in self.cache.entries:
+        if (
+            len(self.cache.entries) >= self.size
+            and region_num not in self.cache.entries
+        ):
             # Will evict LRU
             victim_key = self.cache.lru_order[0]
             evicted = self.cache.entries[victim_key]
@@ -318,13 +324,21 @@ class AccumulationTable:
 @dataclass
 class PatternHistoryTableEntry:
     """Entry in pattern history table."""
+
     pattern: List[bool]
 
 
 class PatternHistoryTable:
     """Pattern history table with configurable PC/Address indexing."""
 
-    def __init__(self, size: int, pattern_len: int, addr_width: int, pc_width: int, num_ways: int = 16):
+    def __init__(
+        self,
+        size: int,
+        pattern_len: int,
+        addr_width: int,
+        pc_width: int,
+        num_ways: int = 16,
+    ):
         self.pattern_len = pattern_len
         self.addr_width = addr_width
         self.pc_width = pc_width
@@ -336,14 +350,18 @@ class PatternHistoryTable:
 
         self.cache = LRUSetAssociativeCache(size, num_ways)
 
-        logger.debug(f"PHT: addr_width={addr_width}, pc_width={pc_width}, "
-                    f"num_sets={self.num_sets}, index_len={self.index_len}")
+        logger.debug(
+            f"PHT: addr_width={addr_width}, pc_width={pc_width}, "
+            f"num_sets={self.num_sets}, index_len={self.index_len}"
+        )
 
     def _build_key(self, pc: int, address: int) -> int:
         """Build key from PC and address."""
         # Mask inputs
         pc_masked = pc & ((1 << self.pc_width) - 1) if self.pc_width > 0 else 0
-        addr_masked = address & ((1 << self.addr_width) - 1) if self.addr_width > 0 else 0
+        addr_masked = (
+            address & ((1 << self.addr_width) - 1) if self.addr_width > 0 else 0
+        )
 
         # Combine
         key = (pc_masked << self.addr_width) | addr_masked
@@ -398,8 +416,7 @@ class BingoPrefetcher(PrefetchAlgorithm):
         # Initialize tables
         self.filter_table = FilterTable(CONFIG["FILTER_TABLE_SIZE"])
         self.accumulation_table = AccumulationTable(
-            CONFIG["ACCUM_TABLE_SIZE"],
-            CONFIG["PATTERN_LEN"]
+            CONFIG["ACCUM_TABLE_SIZE"], CONFIG["PATTERN_LEN"]
         )
 
         # Four Pattern History Tables with different indexing
@@ -409,28 +426,28 @@ class BingoPrefetcher(PrefetchAlgorithm):
             CONFIG["PATTERN_LEN"],
             CONFIG["ADDR_WIDTH"],
             CONFIG["PC_WIDTH"],
-            CONFIG["PHT_ASSOC"]
+            CONFIG["PHT_ASSOC"],
         )
         self.pht_pc_offset = PatternHistoryTable(
             pht_size,
             CONFIG["PATTERN_LEN"],
             (CONFIG["PATTERN_LEN"] - 1).bit_length(),  # log2(pattern_len) bits
             CONFIG["PC_WIDTH"],
-            CONFIG["PHT_ASSOC"]
+            CONFIG["PHT_ASSOC"],
         )
         self.pht_address = PatternHistoryTable(
             pht_size,
             CONFIG["PATTERN_LEN"],
             CONFIG["ADDR_WIDTH"],
             0,  # No PC bits
-            CONFIG["PHT_ASSOC"]
+            CONFIG["PHT_ASSOC"],
         )
         self.pht_pc = PatternHistoryTable(
             pht_size,
             CONFIG["PATTERN_LEN"],
             0,  # No address bits
             CONFIG["PC_WIDTH"],
-            CONFIG["PHT_ASSOC"]
+            CONFIG["PHT_ASSOC"],
         )
 
         self.initialized = False
@@ -477,14 +494,18 @@ class BingoPrefetcher(PrefetchAlgorithm):
         self.pht_pc.insert(pc, address, pattern)
         logger.debug(f"Inserted pattern into all PHTs")
 
-    def _commit_pattern(self, accum_data: AccumulationTableData, region_num: int) -> None:
+    def _commit_pattern(
+        self, accum_data: AccumulationTableData, region_num: int
+    ) -> None:
         """Commit accumulated pattern to PHT."""
         # Calculate address from region and offset
         address = region_num * PATTERN_LEN + accum_data.offset
 
         # Insert into all PHT tables
         self._insert_in_pht(accum_data.pc, address, accum_data.pattern)
-        logger.debug(f"Committed pattern: region {region_num:#x}, pc {accum_data.pc:#x}")
+        logger.debug(
+            f"Committed pattern: region {region_num:#x}, pc {accum_data.pc:#x}"
+        )
 
     def progress(self, access: MemoryAccess, prefetch_hit: bool) -> List[int]:
         """
@@ -508,8 +529,10 @@ class BingoPrefetcher(PrefetchAlgorithm):
         reg_num = region_number(block_num)
         reg_off = region_offset(block_num)
 
-        logger.debug(f"Access: addr={addr:#x}, pc={pc:#x}, block={block_num:#x}, "
-                    f"region={reg_num:#x}, offset={reg_off}")
+        logger.debug(
+            f"Access: addr={addr:#x}, pc={pc:#x}, block={block_num:#x}, "
+            f"region={reg_num:#x}, offset={reg_off}"
+        )
 
         # Try to add to accumulation table
         if self.accumulation_table.set_pattern(reg_num, reg_off):
@@ -595,8 +618,7 @@ class BingoPrefetcher(PrefetchAlgorithm):
         # Reset tables
         self.filter_table = FilterTable(CONFIG["FILTER_TABLE_SIZE"])
         self.accumulation_table = AccumulationTable(
-            CONFIG["ACCUM_TABLE_SIZE"],
-            CONFIG["PATTERN_LEN"]
+            CONFIG["ACCUM_TABLE_SIZE"], CONFIG["PATTERN_LEN"]
         )
 
         self.initialized = False

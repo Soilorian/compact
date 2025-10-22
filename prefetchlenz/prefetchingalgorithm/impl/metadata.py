@@ -1,3 +1,7 @@
+"""
+Efficient Metadata Management for Irregular Data Prefetching by Wu et al.
+"""
+
 import logging
 from typing import Dict, List, Optional
 

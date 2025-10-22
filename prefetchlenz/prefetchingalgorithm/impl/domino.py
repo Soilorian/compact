@@ -1,8 +1,6 @@
 """
 Domino: Temporal prefetcher implementation (defaults used where paper values are absent).
 
-Place this file in: prefetchlenz/prefetchingalgorithm/impl/domino.py
-
 Implements:
  - MHT1: 1-miss history table (maps last miss addr -> predicted next miss)
  - MHT2: 2-miss history table (maps last-two-misses signature -> predicted next miss)

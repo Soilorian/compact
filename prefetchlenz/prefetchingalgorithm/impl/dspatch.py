@@ -1,5 +1,5 @@
 """
-DSPatch: Dual Spatial Pattern Prefetcher - Python implementation
+DSPatch: Dual Spatial Pattern Prefetcher by Bera et al.
 
 Overview:
 - Learns two modulated spatial bit-patterns per physical page/PC signature
@@ -87,7 +87,7 @@ def compress_pattern(pattern: int, pattern_size: int = 64) -> int:
         bit1 = (pattern >> (i * 2)) & 1
         bit2 = (pattern >> (i * 2 + 1)) & 1
         if bit1 or bit2:
-            compressed |= (1 << i)
+            compressed |= 1 << i
     return compressed
 
 
@@ -102,7 +102,7 @@ def decompress_pattern(compressed: int, pattern_size: int = 64) -> int:
     pattern = 0
     for i in range(pattern_size // 2):
         if (compressed >> i) & 1:
-            pattern |= (3 << (i * 2))  # Set both adjacent bits
+            pattern |= 3 << (i * 2)  # Set both adjacent bits
     return pattern
 
 
@@ -115,7 +115,7 @@ def rotate_pattern(pattern: int, offset: int, pattern_size: int = PATTERN_BITS) 
 
 def popcount(pattern: int) -> int:
     """Count number of set bits in pattern."""
-    return bin(pattern).count('1')
+    return bin(pattern).count("1")
 
 
 def hash_pc(pc: int) -> int:
@@ -133,6 +133,7 @@ def hash_pc(pc: int) -> int:
 @dataclass
 class PageBufferEntry:
     """Entry in Page Buffer tracking a 4KB page."""
+
     page_num: int = 0
     pattern: int = 0  # 64-bit pattern
     trigger_pc: List[int] = field(default_factory=lambda: [0, 0])  # 2 triggers per page
@@ -144,14 +145,19 @@ class PageBufferEntry:
 @dataclass
 class SignaturePatternEntry:
     """Entry in Signature Pattern Table."""
+
     # Coverage-biased pattern (per 2KB region)
     cov_pattern: List[int] = field(default_factory=lambda: [0, 0])  # 2x 32-bit patterns
-    measure_cov: List[int] = field(default_factory=lambda: [0, 0])  # 2-bit saturating counters
+    measure_cov: List[int] = field(
+        default_factory=lambda: [0, 0]
+    )  # 2-bit saturating counters
     or_count: List[int] = field(default_factory=lambda: [0, 0])  # 2-bit counters
 
     # Accuracy-biased pattern (per 2KB region)
     acc_pattern: List[int] = field(default_factory=lambda: [0, 0])  # 2x 32-bit patterns
-    measure_acc: List[int] = field(default_factory=lambda: [0, 0])  # 2-bit saturating counters
+    measure_acc: List[int] = field(
+        default_factory=lambda: [0, 0]
+    )  # 2-bit saturating counters
 
 
 # ----------------------
@@ -223,7 +229,7 @@ class PageBuffer:
         self.lru_order.append(page_num)
 
         # Set bit in pattern
-        entry.pattern |= (1 << offset)
+        entry.pattern |= 1 << offset
 
         # Check if this is a trigger access (first access to 2KB region)
         region = region_in_page(offset)
@@ -264,10 +270,17 @@ class SignaturePatternTable:
             self.entries[index] = SignaturePatternEntry()
         return self.entries[index]
 
-    def update(self, pc: int, region: int, program_pattern: int,
-               cov_pattern: int, acc_pattern: int,
-               measure_cov: int, measure_acc: int,
-               or_count: int) -> None:
+    def update(
+        self,
+        pc: int,
+        region: int,
+        program_pattern: int,
+        cov_pattern: int,
+        acc_pattern: int,
+        measure_cov: int,
+        measure_acc: int,
+        or_count: int,
+    ) -> None:
         """Update SPT entry."""
         entry = self.lookup(pc)
         entry.cov_pattern[region] = cov_pattern
@@ -342,8 +355,9 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
         else:
             return 3
 
-    def _update_patterns(self, spt_entry: SignaturePatternEntry, region: int,
-                        program_pattern: int) -> None:
+    def _update_patterns(
+        self, spt_entry: SignaturePatternEntry, region: int, program_pattern: int
+    ) -> None:
         """Update CoP and AccP patterns."""
         # Update Coverage-biased Pattern (CoP)
         old_cov = spt_entry.cov_pattern[region]
@@ -354,8 +368,12 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
             spt_entry.cov_pattern[region] = new_cov
 
         # Check if CoP needs reset
-        accuracy = self._quantify_accuracy(program_pattern, spt_entry.cov_pattern[region])
-        coverage = self._quantify_coverage(program_pattern, spt_entry.cov_pattern[region])
+        accuracy = self._quantify_accuracy(
+            program_pattern, spt_entry.cov_pattern[region]
+        )
+        coverage = self._quantify_coverage(
+            program_pattern, spt_entry.cov_pattern[region]
+        )
 
         if accuracy < 2 or coverage < 2:  # Less than 50%
             spt_entry.measure_cov[region] = min(3, spt_entry.measure_cov[region] + 1)
@@ -372,13 +390,17 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
         spt_entry.acc_pattern[region] = spt_entry.cov_pattern[region] & program_pattern
 
         # Update AccP measure
-        acc_accuracy = self._quantify_accuracy(program_pattern, spt_entry.acc_pattern[region])
+        acc_accuracy = self._quantify_accuracy(
+            program_pattern, spt_entry.acc_pattern[region]
+        )
         if acc_accuracy < 2:  # Less than 50%
             spt_entry.measure_acc[region] = min(3, spt_entry.measure_acc[region] + 1)
         else:
             spt_entry.measure_acc[region] = max(0, spt_entry.measure_acc[region] - 1)
 
-    def _select_pattern(self, spt_entry: SignaturePatternEntry, region: int) -> Optional[int]:
+    def _select_pattern(
+        self, spt_entry: SignaturePatternEntry, region: int
+    ) -> Optional[int]:
         """Select CoP or AccP based on bandwidth utilization."""
         bw_quartile = self.bw_tracker.get_quartile()
 
@@ -426,7 +448,9 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
         offset = page_offset(addr)
         region = region_in_page(offset)
 
-        logger.debug(f"Access: addr={addr:#x}, pc={pc:#x}, page={pnum:#x}, offset={offset}, region={region}")
+        logger.debug(
+            f"Access: addr={addr:#x}, pc={pc:#x}, page={pnum:#x}, offset={offset}, region={region}"
+        )
 
         # Update page buffer
         pb_entry = self.page_buffer.access(pnum, offset, pc)
@@ -452,7 +476,9 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
 
                     # Anchor pattern to trigger offset
                     region_offset = trigger_offset % BLOCKS_PER_REGION
-                    anchored = rotate_pattern(full_pattern, region_offset, BLOCKS_PER_REGION)
+                    anchored = rotate_pattern(
+                        full_pattern, region_offset, BLOCKS_PER_REGION
+                    )
 
                     # Generate prefetches from pattern
                     base_offset = region * BLOCKS_PER_REGION
@@ -460,7 +486,9 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
                         if (anchored >> i) & 1:
                             pf_offset = base_offset + i
                             if pf_offset != offset:  # Don't prefetch current address
-                                pf_addr = (pnum * CONFIG["PAGE_SIZE"]) + (pf_offset * CONFIG["BLOCK_SIZE"])
+                                pf_addr = (pnum * CONFIG["PAGE_SIZE"]) + (
+                                    pf_offset * CONFIG["BLOCK_SIZE"]
+                                )
                                 prefetches.append(pf_addr)
 
                     logger.debug(f"Generated {len(prefetches)} prefetches from pattern")
@@ -482,12 +510,14 @@ class DSPatchPrefetcher(PrefetchAlgorithm):
                         region_pattern = 0
                         for i in range(BLOCKS_PER_REGION):
                             if (pb_entry.pattern >> (base_offset + i)) & 1:
-                                region_pattern |= (1 << i)
+                                region_pattern |= 1 << i
 
                         # Anchor pattern
                         trigger_offset = pb_entry.trigger_offset[region]
                         region_offset = trigger_offset % BLOCKS_PER_REGION
-                        anchored = rotate_pattern(region_pattern, -region_offset, BLOCKS_PER_REGION)
+                        anchored = rotate_pattern(
+                            region_pattern, -region_offset, BLOCKS_PER_REGION
+                        )
 
                         # Compress
                         compressed = compress_pattern(anchored, BLOCKS_PER_REGION)

@@ -1,3 +1,7 @@
+"""
+Linearizing Irregular Memory Accesses for Improved by Jain et al.
+"""
+
 from __future__ import annotations
 
 import logging

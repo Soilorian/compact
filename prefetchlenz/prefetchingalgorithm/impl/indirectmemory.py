@@ -1,5 +1,5 @@
 """
-Indirect Memory Prefetcher - Python implementation
+Indirect Memory Prefetcher by Yu et al.
 
 Overview:
 - Tracks indirect memory access patterns (pointer chasing)
@@ -99,6 +99,7 @@ class SaturatingCounter:
 @dataclass
 class PrefetchTableEntry:
     """Entry in the prefetch table."""
+
     address: int = 0
     secure: bool = False
     enabled: bool = False
@@ -113,6 +114,7 @@ class PrefetchTableEntry:
 @dataclass
 class IndirectPatternDetectorEntry:
     """Entry in the indirect pattern detector."""
+
     idx1: int = 0
     idx2: int = 0
     secondIndexSet: bool = False
@@ -124,7 +126,9 @@ class IndirectPatternDetectorEntry:
         if not self.baseAddr:
             addr_array_len = CONFIG["ADDR_ARRAY_LEN"]
             num_shifts = len(CONFIG["SHIFT_VALUES"])
-            self.baseAddr = [[0 for _ in range(num_shifts)] for _ in range(addr_array_len)]
+            self.baseAddr = [
+                [0 for _ in range(num_shifts)] for _ in range(addr_array_len)
+            ]
 
 
 # ----------------------
@@ -135,7 +139,11 @@ class PrefetchTable:
 
     def __init__(self, entries: int, assoc: int):
         num_sets = entries // assoc
-        self.cache = Cache(num_sets=num_sets, num_ways=assoc, replacement_policy_cls=LruReplacementPolicy)
+        self.cache = Cache(
+            num_sets=num_sets,
+            num_ways=assoc,
+            replacement_policy_cls=LruReplacementPolicy,
+        )
         self.entries: Dict[int, PrefetchTableEntry] = {}
 
     def find_entry(self, pc: int) -> Optional[PrefetchTableEntry]:
@@ -184,7 +192,11 @@ class IndirectPatternDetector:
 
     def __init__(self, entries: int, assoc: int):
         num_sets = entries // assoc
-        self.cache = Cache(num_sets=num_sets, num_ways=assoc, replacement_policy_cls=LruReplacementPolicy)
+        self.cache = Cache(
+            num_sets=num_sets,
+            num_ways=assoc,
+            replacement_policy_cls=LruReplacementPolicy,
+        )
         self.entries: Dict[int, IndirectPatternDetectorEntry] = {}
 
     def find_entry(self, addr: int) -> Optional[IndirectPatternDetectorEntry]:
@@ -242,12 +254,10 @@ class IndirectMemoryPrefetcher(PrefetchAlgorithm):
 
         # Initialize tables
         self.prefetchTable = PrefetchTable(
-            CONFIG["PT_TABLE_ENTRIES"],
-            CONFIG["PT_TABLE_ASSOC"]
+            CONFIG["PT_TABLE_ENTRIES"], CONFIG["PT_TABLE_ASSOC"]
         )
         self.ipd = IndirectPatternDetector(
-            CONFIG["IPD_TABLE_ENTRIES"],
-            CONFIG["IPD_TABLE_ASSOC"]
+            CONFIG["IPD_TABLE_ENTRIES"], CONFIG["IPD_TABLE_ASSOC"]
         )
 
         # Tracking for IPD entry currently accumulating misses
@@ -269,9 +279,13 @@ class IndirectMemoryPrefetcher(PrefetchAlgorithm):
                 if addr == predicted_addr:
                     pt_entry.indirectCounter.increment()
                     pt_entry.increasedIndirectCounter = True
-                    logger.debug(f"Match on active entry: addr={addr:#x}, counter={pt_entry.indirectCounter}")
+                    logger.debug(
+                        f"Match on active entry: addr={addr:#x}, counter={pt_entry.indirectCounter}"
+                    )
 
-    def allocateOrUpdateIPDEntry(self, pt_entry: PrefetchTableEntry, index: int) -> None:
+    def allocateOrUpdateIPDEntry(
+        self, pt_entry: PrefetchTableEntry, index: int
+    ) -> None:
         """Allocate or update IPD entry for pattern detection."""
         # Use pt_entry address as IPD key
         ipd_entry_addr = id(pt_entry)
@@ -315,7 +329,9 @@ class IndirectMemoryPrefetcher(PrefetchAlgorithm):
             ba_array[idx] = miss_addr - (entry.idx1 << shift)
 
         entry.numMisses += 1
-        logger.debug(f"Track miss idx1: addr={miss_addr:#x}, numMisses={entry.numMisses}")
+        logger.debug(
+            f"Track miss idx1: addr={miss_addr:#x}, numMisses={entry.numMisses}"
+        )
 
         if entry.numMisses >= len(entry.baseAddr):
             # Stop tracking misses once we have tracked enough
@@ -351,7 +367,9 @@ class IndirectMemoryPrefetcher(PrefetchAlgorithm):
                         pt_entry.shift = shift
                         pt_entry.enabled = True
                         pt_entry.indirectCounter.reset()
-                        logger.debug(f"Pattern found! base={pt_entry.baseAddr:#x}, shift={shift}")
+                        logger.debug(
+                            f"Pattern found! base={pt_entry.baseAddr:#x}, shift={shift}"
+                        )
 
                     # Release the current IPD Entry
                     self.ipd.invalidate(entry)
@@ -438,9 +456,13 @@ class IndirectMemoryPrefetcher(PrefetchAlgorithm):
                         distance = max(1, distance)  # At least 1 prefetch
 
                         for delta in range(1, distance + 1):
-                            pf_addr = pt_entry.baseAddr + ((pt_entry.index + delta) << pt_entry.shift)
+                            pf_addr = pt_entry.baseAddr + (
+                                (pt_entry.index + delta) << pt_entry.shift
+                            )
                             prefetches.append(pf_addr)
-                        logger.debug(f"Indirect: {len(prefetches)} prefetches, distance={distance}")
+                        logger.debug(
+                            f"Indirect: {len(prefetches)} prefetches, distance={distance}"
+                        )
 
                 return prefetches
         else:
@@ -455,12 +477,10 @@ class IndirectMemoryPrefetcher(PrefetchAlgorithm):
         """Clean up prefetcher state."""
         # Clear all tables
         self.prefetchTable = PrefetchTable(
-            CONFIG["PT_TABLE_ENTRIES"],
-            CONFIG["PT_TABLE_ASSOC"]
+            CONFIG["PT_TABLE_ENTRIES"], CONFIG["PT_TABLE_ASSOC"]
         )
         self.ipd = IndirectPatternDetector(
-            CONFIG["IPD_TABLE_ENTRIES"],
-            CONFIG["IPD_TABLE_ASSOC"]
+            CONFIG["IPD_TABLE_ENTRIES"], CONFIG["IPD_TABLE_ASSOC"]
         )
         self.ipdEntryTrackingMisses = None
         self.initialized = False

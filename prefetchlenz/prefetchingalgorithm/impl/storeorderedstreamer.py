@@ -1,4 +1,7 @@
-# sos_prefetcher.py
+"""
+Store-Ordered Streaming of Shared Memory by Wenisch et al.
+"""
+
 from __future__ import annotations
 
 import logging

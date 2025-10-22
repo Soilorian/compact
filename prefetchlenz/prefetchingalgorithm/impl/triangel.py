@@ -1,4 +1,7 @@
-# triangel_prefetcher.py
+"""
+Triangel: A High-Performance, Accurate, Timely On-Chip Temporal Prefetcher by Ainsworth et al.
+"""
+
 from __future__ import annotations
 
 import logging

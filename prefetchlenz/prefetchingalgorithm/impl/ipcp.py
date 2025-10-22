@@ -1,6 +1,6 @@
 """
-IPCP: Instruction Pointer Classifier–based Prefetcher
-(see ISCA’20 paper "Instruction Pointer Classifier-based Spatial Prefetching")
+Bouquet of Instruction Pointers: Instruction Pointer Classifier-based Spatial Hardware Prefetching by Panda et al.
+
 
 Implements IPCP inside the PrefetchAlgorithm framework:
  - Uses IPTable to classify PCs into classes
@@ -10,9 +10,10 @@ Implements IPCP inside the PrefetchAlgorithm framework:
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 logger = logging.getLogger("prefetchlenz.prefetchingalgorithm.impl.ipcp")
 
@@ -195,7 +196,7 @@ class Scheduler:
 # -------------------------
 
 
-class IPCPPrefetcher:
+class IPCPPrefetcher(PrefetchAlgorithm):
     """Main IPCP Prefetcher entrypoint"""
 
     def __init__(self):

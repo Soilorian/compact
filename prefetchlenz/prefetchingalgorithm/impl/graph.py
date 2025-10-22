@@ -1,3 +1,7 @@
+"""
+Graph Prefetching Using Data Structure Knowledge by Ainsworth
+"""
+
 from __future__ import annotations
 
 import heapq

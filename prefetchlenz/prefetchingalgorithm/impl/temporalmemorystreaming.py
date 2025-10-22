@@ -1,10 +1,13 @@
-# temporal_streaming_prefetcher.py
+"""
+Temporal Memory Streaming by Ferdman et al.
+"""
+
 from __future__ import annotations
 
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Set, Tuple
+from typing import Deque, Dict, List, Set, Tuple
 
 from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
 from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm

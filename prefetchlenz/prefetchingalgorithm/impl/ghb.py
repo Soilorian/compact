@@ -1,3 +1,7 @@
+"""
+Data Cache Prefetching Using a Global History Buffer by Nesbit et al.
+"""
+
 import logging
 import time
 from collections import Counter, OrderedDict, defaultdict, deque
@@ -5,6 +9,7 @@ from dataclasses import dataclass
 from typing import Deque, Dict, List, Optional, Tuple
 
 from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.ghb")
 logger.addHandler(logging.NullHandler())
@@ -326,7 +331,7 @@ class OutstandingPrefetchTracker:
 # ----------------------------- Orchestrator Class ----------------------------
 
 
-class GlobalHistoryBufferPrefetcher:
+class GlobalHistoryBufferPrefetcher(PrefetchAlgorithm):
     """
     GHB-based correlation prefetcher.
 

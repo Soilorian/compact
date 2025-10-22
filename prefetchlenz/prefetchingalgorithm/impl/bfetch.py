@@ -1,7 +1,5 @@
 """
-B-Fetch: Branch-Prediction Directed Prefetching (software approximation)
-
-Place in: prefetchlenz/prefetchingalgorithm/impl/bfetch.py
+B-Fetch: Branch-Prediction Directed Prefetching by Kadjo et al.
 
 Overview:
 - Uses a Branch Stream Table (BST) to map branch PC -> stream descriptor (target base,

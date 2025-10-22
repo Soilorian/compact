@@ -1,3 +1,7 @@
+"""
+Low-Cost Epoch-Based Correlation Prefetching by Chou et al.
+"""
+
 import logging
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field

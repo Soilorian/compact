@@ -1,5 +1,5 @@
 """
-Clustering + LSTM prefetcher (Hashemi et al. style) — PyTorch inference implementation.
+Clustering + LSTM prefetcher by Hashemi et al.
 
 Implements the "Clustering + LSTM" variant:
  - cluster address space (k-means) into regions
