@@ -18,4 +18,4 @@ if not logger.hasHandlers():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-logger.info("PrefetchLenz Library Initialized")
+logger.info("Compact Library Initialized")

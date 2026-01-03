@@ -1,5 +1,5 @@
 """
-Configuration loader for PrefetchLenz - handles YAML config files
+Configuration loader for Compact - handles YAML config files
 and dynamically loads prefetching algorithms with specified parameters.
 """
 
@@ -13,7 +13,7 @@ import importlib
 class ConfigLoader:
     """Loads and validates configuration files for prefetching algorithms."""
 
-    # All available algorithms in PrefetchLenz
+    # All available algorithms in Compact
     AVAILABLE_ALGORITHMS = {
         'linear': 'compact.prefetchingalgorithm.impl.linear',
         'strided': 'compact.prefetchingalgorithm.impl.strided',
@@ -160,7 +160,7 @@ class ConfigLoader:
 
     def list_algorithms(self) -> None:
         """Print all available algorithms."""
-        print("\nAvailable Prefetching Algorithms in PrefetchLenz:\n")
+        print("\nAvailable Prefetching Algorithms in Compact:\n")
         for i, algo_name in enumerate(sorted(self.AVAILABLE_ALGORITHMS.keys()), 1):
             print(f"  {i:2d}. {algo_name}")
         print(f"\nTotal: {len(self.AVAILABLE_ALGORITHMS)} algorithms\n")
@@ -177,7 +177,7 @@ def setup_logging(config: Dict[str, Any]) -> None:
     logger.setLevel(getattr(logging, log_level))
 
     # Also setup the incorrectly-named analyzer logger
-    analyzer_logger = logging.getLogger('prefetchLenz.analysis')
+    analyzer_logger = logging.getLogger('compact.analysis')
     analyzer_logger.setLevel(getattr(logging, log_level))
 
     # Create formatter

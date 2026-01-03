@@ -12,7 +12,7 @@ from typing import Deque, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.hds")
+logger = logging.getLogger("compact.prefetchingalgorithm.impl.hds")
 logger.addHandler(logging.NullHandler())
 
 Symbol = Tuple[int, int]  # (pc, addr)

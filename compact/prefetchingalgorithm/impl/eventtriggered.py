@@ -16,7 +16,7 @@ from compact.prefetchingalgorithm.access.eventtriggeredmemoryaccess import (
 )
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.event_triggered")
+logger = logging.getLogger("compact.prefetchingalgorithm.event_triggered")
 
 
 # ----------------------------- EWMA / Metrics ---------------------------------

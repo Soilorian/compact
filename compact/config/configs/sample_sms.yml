@@ -1,4 +1,4 @@
-# PrefetchLenz Sample Configuration: SMS (Spatial Memory Streaming)
+# Compact Sample Configuration: SMS (Spatial Memory Streaming)
 # SMS detects spatial patterns within memory regions
 # Best for: Complex spatial access patterns, 2D arrays, cache-friendly workloads
 

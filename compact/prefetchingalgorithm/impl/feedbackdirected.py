@@ -11,7 +11,7 @@ from compact.prefetchingalgorithm.access.feedbackdirectedmemoryaccess import (
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.FeedbackDirectedPrefetcher")
+logger = logging.getLogger("compact.FeedbackDirectedPrefetcher")
 
 
 class FeedbackDirectedPrefetcher(PrefetchAlgorithm):

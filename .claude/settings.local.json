@@ -15,7 +15,7 @@
       "Bash(bash:*)",
       "Read(//c/**)",
       "Bash($env:PYTHONPATH=\"C:\\Users\\Sahand\\Desktop\\Project\\prefetch-lenz\")",
-      "Bash(cat \"C:/Users/Sahand/Desktop/Project/prefetch-lenz/prefetchlenz/dataloader/dataloader.py\")"
+      "Bash(cat \"C:/Users/Sahand/Desktop/Project/prefetch-lenz/compact/dataloader/dataloader.py\")"
     ],
     "deny": [],
     "ask": []

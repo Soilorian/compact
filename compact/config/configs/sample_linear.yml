@@ -1,4 +1,4 @@
-# PrefetchLenz Sample Configuration: Linear Algorithm
+# Compact Sample Configuration: Linear Algorithm
 # Linear is a simple stride-based prefetcher using hardware stream buffers
 # Best for: Sequential access patterns, simple stride detection
 

@@ -1,4 +1,4 @@
-# PrefetchLenz Sample Configuration: LearnCluster (ML-Based)
+# Compact Sample Configuration: LearnCluster (ML-Based)
 # LearnCluster uses k-means clustering + LSTM neural networks
 # Best for: Complex non-linear patterns, high accuracy requirements, offline analysis
 

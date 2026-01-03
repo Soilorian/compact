@@ -5,7 +5,7 @@ from typing import List
 from compact.dataloader.dataloader import DataLoader
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
-logger = logging.getLogger("prefetchLenz.dataloader.impl")
+logger = logging.getLogger("compact.dataloader.impl")
 
 
 class ArrayLoader(DataLoader):

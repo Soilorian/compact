@@ -11,7 +11,7 @@ from typing import Deque, Dict, List, Optional, Tuple
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.ghb")
+logger = logging.getLogger("compact.prefetchingalgorithm.impl.ghb")
 logger.addHandler(logging.NullHandler())
 
 

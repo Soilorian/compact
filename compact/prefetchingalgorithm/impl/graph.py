@@ -14,7 +14,7 @@ from typing import Deque, Dict, List, Optional, Set, Tuple
 from compact.prefetchingalgorithm.access.graphmemoryaccess import GraphMemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.graph_hw")
+logger = logging.getLogger("compact.prefetchingalgorithm.graph_hw")
 logger.addHandler(logging.NullHandler())
 
 

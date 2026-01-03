@@ -8,7 +8,7 @@ from compact.config import RptConfig
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.referencepredictiontable")
+logger = logging.getLogger("compact.referencepredictiontable")
 
 
 class RptState(Enum):

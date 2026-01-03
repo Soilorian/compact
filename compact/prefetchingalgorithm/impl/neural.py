@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.hierarchical")
+logger = logging.getLogger("compact.prefetchingalgorithm.hierarchical")
 logger.addHandler(logging.NullHandler())
 
 

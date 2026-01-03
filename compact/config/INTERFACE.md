@@ -1,6 +1,6 @@
-# PrefetchLenz Configuration-Based Interface
+# Compact Configuration-Based Interface
 
-Welcome to PrefetchLenz! This guide explains how to run prefetching algorithm simulations without modifying any code. Simply use configuration files to select and tune your preferred algorithm.
+Welcome to Compact! This guide explains how to run prefetching algorithm simulations without modifying any code. Simply use configuration files to select and tune your preferred algorithm.
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ python run.py --template
 
 ## Configuration Files
 
-Configuration files are YAML-based and located in `prefetchlenz/config/configs/`.
+Configuration files are YAML-based and located in `compact/config/configs/`.
 
 ### Basic Structure
 
@@ -112,13 +112,13 @@ output_format: both
 - Simple stride-based prefetcher with hardware stream buffers
 - Fast, memory-efficient
 - Best for: Sequential patterns, simple workloads
-- Config: `prefetchlenz/config/configs/sample_linear.yml`
+- Config: `compact/config/configs/sample_linear.yml`
 
 **BestOffset**
 - Tests predefined offsets and learns the best one per PC
 - Offline learning phase, then fixed offetch
 - Best for: Regular stride patterns
-- Config: `prefetchlenz/config/configs/sample_bestoffset.yml`
+- Config: `compact/config/configs/sample_bestoffset.yml`
 
 **Strided**
 - Classic stride detection and prefetching
@@ -131,19 +131,19 @@ output_format: both
 - Detects multi-block spatial patterns within memory regions
 - Uses AGT (Active Generation Table) and PHT (Pattern History Table)
 - Good accuracy with moderate overhead
-- Config: `prefetchlenz/config/configs/sample_sms.yml`
+- Config: `compact/config/configs/sample_sms.yml`
 
 **Bingo**
 - Advanced spatial prefetcher with 4 pattern history tables
 - High accuracy, moderate memory overhead
 - Best for: Complex workloads with diverse patterns
-- Config: `prefetchlenz/config/configs/sample_bingo.yml`
+- Config: `compact/config/configs/sample_bingo.yml`
 
 **GHB (Global History Buffer)**
 - Correlation-based using global access history
 - Maps address sequences to deltas
 - Good for: Recurring patterns, regular sequences
-- Config: `prefetchlenz/config/configs/sample_ghb.yml`
+- Config: `compact/config/configs/sample_ghb.yml`
 
 ### Advanced Algorithms
 
@@ -152,7 +152,7 @@ output_format: both
 - Highest accuracy for complex patterns
 - Requires PyTorch
 - Best for: Offline analysis, complex non-linear patterns
-- Config: `prefetchlenz/config/configs/sample_learncluster.yml`
+- Config: `compact/config/configs/sample_learncluster.yml`
 
 **Neural**
 - Neural network-based prefetcher
@@ -227,13 +227,13 @@ python run.py --config compact/config/configs/sample_sms.yml \
 ### Example
 
 ```
-[2024-10-18 15:42:31] [INFO] prefetchlenz.config.config_loader - Loading configuration from: prefetchlenz/config/configs/sample_linear.yml
-[2024-10-18 15:42:31] [INFO] prefetchlenz.config.config_loader - Configuration loaded and validated successfully
-[2024-10-18 15:42:32] [INFO] prefetchlenz.prefetchingalgorithm.impl.linear - Initializing Linear prefetcher
-[2024-10-18 15:42:32] [DEBUG] prefetchlenz.prefetchingalgorithm.impl.linear - Stream buffer initialized: 32 entries
-[2024-10-18 15:42:40] [INFO] prefetchlenz.prefetchingalgorithm.impl.linear - Total accesses processed: 1000
-[2024-10-18 15:42:40] [INFO] prefetchlenz.prefetchingalgorithm.impl.linear - Total prefetch hits: 847
-[2024-10-18 15:42:40] [INFO] prefetchlenz.prefetchingalgorithm.impl.linear - Prefetch accuracy: 84.7%
+[2024-10-18 15:42:31] [INFO] compact.config.config_loader - Loading configuration from: compact/config/configs/sample_linear.yml
+[2024-10-18 15:42:31] [INFO] compact.config.config_loader - Configuration loaded and validated successfully
+[2024-10-18 15:42:32] [INFO] compact.prefetchingalgorithm.impl.linear - Initializing Linear prefetcher
+[2024-10-18 15:42:32] [DEBUG] compact.prefetchingalgorithm.impl.linear - Stream buffer initialized: 32 entries
+[2024-10-18 15:42:40] [INFO] compact.prefetchingalgorithm.impl.linear - Total accesses processed: 1000
+[2024-10-18 15:42:40] [INFO] compact.prefetchingalgorithm.impl.linear - Total prefetch hits: 847
+[2024-10-18 15:42:40] [INFO] compact.prefetchingalgorithm.impl.linear - Prefetch accuracy: 84.7%
 ```
 
 ### Log Levels
@@ -262,7 +262,7 @@ python run.py --config compact/config/configs/sample_sms.yml \
    - Accuracy percentage
    - Algorithm-specific metrics
 
-See `prefetchlenz/config/logs/sample_run.log` for a complete example.
+See `compact/config/logs/sample_run.log` for a complete example.
 
 ---
 
@@ -401,7 +401,7 @@ For a complete list, see the comments in sample config files or the algorithm so
 ## Files and Directories
 
 ```
-prefetchlenz/config/
+compact/config/
 ├── config_loader.py              # Configuration parser (internal)
 ├── config_template.yml           # Template with all options
 ├── INTERFACE.md                  # This file
@@ -483,7 +483,7 @@ grep "Accuracy:" test_*.log
 1. **Start Simple**: Begin with Linear or BestOffset to understand the framework
 2. **Use Sample Configs**: Each sample config is tuned for typical workloads
 3. **Enable Debug for Tuning**: Use `--log-level DEBUG` when experimenting
-4. **Check Sample Log**: See `prefetchlenz/config/logs/sample_run.log` for expected output format
+4. **Check Sample Log**: See `compact/config/logs/sample_run.log` for expected output format
 5. **Create Custom Configs**: Copy samples and tweak parameters incrementally
 6. **Monitor Log Output**: Watch logs to understand what algorithms are doing
 7. **Use Reproducible Seeds**: Set `random_seed` for consistent ML algorithm results
@@ -494,8 +494,8 @@ grep "Accuracy:" test_*.log
 
 - **List algorithms**: `python run.py --list-algorithms`
 - **Show template**: `python run.py --template`
-- **Check sample configs**: Look in `prefetchlenz/config/configs/`
-- **View sample log**: See `prefetchlenz/config/logs/sample_run.log`
+- **Check sample configs**: Look in `compact/config/configs/`
+- **View sample log**: See `compact/config/logs/sample_run.log`
 - **Report issues**: Use project issue tracker
 
 ---

@@ -1,4 +1,4 @@
-# PrefetchLenz Sample Configuration: Bingo Prefetcher
+# Compact Sample Configuration: Bingo Prefetcher
 # Bingo is an advanced spatial prefetcher with multiple pattern tables
 # Best for: Complex workloads with diverse access patterns, good accuracy
 

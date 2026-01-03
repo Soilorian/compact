@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PrefetchLenz Configuration-Based Runner
+Compact Configuration-Based Runner
 Allows users to select and run prefetching algorithms without modifying code.
 
 Usage:
@@ -142,7 +142,7 @@ def list_algorithms():
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="PrefetchLenz Configuration-Based Runner",
+        description="Compact Configuration-Based Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

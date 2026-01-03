@@ -3,7 +3,7 @@ import logging
 from compact.dataloader.dataloader import DataLoader
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.analysis")
+logger = logging.getLogger("compact.analysis")
 
 
 class Analyzer:

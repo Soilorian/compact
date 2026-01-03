@@ -1,4 +1,4 @@
-# PrefetchLenz Sample Configuration: BestOffset Algorithm
+# Compact Sample Configuration: BestOffset Algorithm
 # BestOffset tests predefined offsets and selects the best performing one
 # Best for: Regular stride patterns with varying offsets
 

@@ -15,7 +15,7 @@ from compact.prefetchingalgorithm.access.linearmemoryaccess import (
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.linearizing_hw")
+logger = logging.getLogger("compact.prefetchingalgorithm.linearizing_hw")
 
 # --- NOTE / CITATION ---
 # This implementation follows the high-level hardware ideas described in the

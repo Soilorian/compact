@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm")
+logger = logging.getLogger("compact.prefetchingalgorithm")
 
 
 class PrefetchAlgorithm(ABC):

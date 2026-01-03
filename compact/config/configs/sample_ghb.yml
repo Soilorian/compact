@@ -1,4 +1,4 @@
-# PrefetchLenz Sample Configuration: GHB (Global History Buffer)
+# Compact Sample Configuration: GHB (Global History Buffer)
 # GHB is a correlation-based prefetcher using global history and delta tracking
 # Best for: Workloads with recurring address sequences, good generalization
 

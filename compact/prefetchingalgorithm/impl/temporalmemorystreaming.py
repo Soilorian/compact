@@ -12,7 +12,7 @@ from typing import Deque, Dict, List, Set, Tuple
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.temporal_streaming")
+logger = logging.getLogger("compact.prefetchingalgorithm.temporal_streaming")
 logger.addHandler(logging.NullHandler())
 
 

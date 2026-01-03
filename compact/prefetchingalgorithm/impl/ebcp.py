@@ -12,7 +12,7 @@ from compact.cache.replacementpolicy.impl.hawkeye import HawkeyeReplacementPolic
 from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.ebcp")
+logger = logging.getLogger("compact.prefetchingalgorithm.impl.ebcp")
 
 
 # ------------------------------- Data Records ---------------------------------

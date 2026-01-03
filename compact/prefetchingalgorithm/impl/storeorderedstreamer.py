@@ -14,7 +14,7 @@ from compact.prefetchingalgorithm.access.storeorderedmemoryaccess import (
 )
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.sos")
+logger = logging.getLogger("compact.prefetchingalgorithm.sos")
 logger.addHandler(logging.NullHandler())
 
 

@@ -17,7 +17,7 @@ from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 from compact.util.size import Size
 
-logger = logging.getLogger("prefetchLenz.prefetchingalgorithm.impl.triangel")
+logger = logging.getLogger("compact.prefetchingalgorithm.impl.triangel")
 logger.addHandler(logging.NullHandler())
 
 
