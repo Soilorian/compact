@@ -1,5 +1,5 @@
-from prefetchlenz.dataloader.impl.ArrayDataLoader import ArrayLoader
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.dataloader.impl.ArrayDataLoader import ArrayLoader
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 
 def test_array_loader_returns_data():

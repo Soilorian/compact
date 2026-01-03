@@ -6,13 +6,13 @@ prefetch issuance, and scheduler crediting.
 
 import pytest
 
-from prefetchlenz.prefetchingalgorithm.impl.ipcp import (
+from compact.prefetchingalgorithm.impl.ipcp import (
     CONFIG,
     IPCPPrefetcher,
     block_index,
     region_base,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 
 def test_init_and_close():

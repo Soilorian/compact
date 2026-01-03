@@ -11,14 +11,14 @@ Tests are deterministic and validate:
 
 import pytest
 
-from prefetchlenz.prefetchingalgorithm.impl.bfetch import (
+from compact.prefetchingalgorithm.impl.bfetch import (
     BST,
     CONFIG,
     BFetchPrefetcher,
     StreamDescriptor,
     block_base,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 
 def test_init_and_close():

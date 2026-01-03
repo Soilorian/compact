@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.metadata import MetadataPrefetcher
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.metadata import MetadataPrefetcher
 
 logger = logging.getLogger("test.metadata_prefetcher")
 

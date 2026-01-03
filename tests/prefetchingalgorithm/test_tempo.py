@@ -13,14 +13,14 @@ Tests validate:
 
 import logging
 
-from prefetchlenz.prefetchingalgorithm.impl.tempo import (
+from compact.prefetchingalgorithm.impl.tempo import (
     CONFIG,
     TLB,
     PageTableWalker,
     TempoPrefetcher,
     TLBEntry,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Set logging level for tests
 logging.basicConfig(level=logging.WARNING)

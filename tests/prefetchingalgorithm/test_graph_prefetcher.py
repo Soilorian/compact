@@ -1,5 +1,5 @@
-from prefetchlenz.prefetchingalgorithm.access.graphmemoryaccess import GraphMemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.graph import GraphPrefetcher, Metric
+from compact.prefetchingalgorithm.access.graphmemoryaccess import GraphMemoryAccess
+from compact.prefetchingalgorithm.impl.graph import GraphPrefetcher, Metric
 
 
 def makeAccess(pc, addr, access_latency=None):

@@ -1,8 +1,8 @@
 # test_temporal_streaming_prefetcher.py
 import pytest
 
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.temporalmemorystreaming import (
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.temporalmemorystreaming import (
     TemporalMemoryStreamingPrefetcher,
 )
 

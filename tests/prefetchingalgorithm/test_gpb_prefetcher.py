@@ -1,5 +1,5 @@
-from prefetchlenz.prefetchingalgorithm.impl.ghb import GlobalHistoryBufferPrefetcher
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.impl.ghb import GlobalHistoryBufferPrefetcher
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # ---------- Tests ----------
 

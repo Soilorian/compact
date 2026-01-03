@@ -17,10 +17,10 @@ from pathlib import Path
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from prefetchlenz.config.config_loader import ConfigLoader, setup_logging
-from prefetchlenz.analyzer.analyzer import Analyzer
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.access.linearmemoryaccess import LinearMemoryAccess
+from compact.config.config_loader import ConfigLoader, setup_logging
+from compact.analyzer.analyzer import Analyzer
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.access.linearmemoryaccess import LinearMemoryAccess
 
 
 class SimpleDataLoader:
@@ -94,7 +94,7 @@ def run_with_config(config_path: str, log_level_override: str = None, log_file_o
 
         # Setup logging
         setup_logging(config)
-        logger = logging.getLogger('prefetchlenz')
+        logger = logging.getLogger('compact')
 
         logger.info(f"Configuration loaded from: {config_path}")
         logger.info(f"Algorithm: {config['algorithm']}")
@@ -150,25 +150,25 @@ Examples:
   python run.py --list-algorithms
 
   # Run with a sample configuration
-  python run.py --config prefetchlenz/config/configs/sample_linear.yml
+  python run.py --config compact/config/configs/sample_linear.yml
 
   # Run with custom log level (show debug output)
-  python run.py --config prefetchlenz/config/configs/sample_sms.yml --log-level DEBUG
+  python run.py --config compact/config/configs/sample_sms.yml --log-level DEBUG
 
   # Run with custom log file output
-  python run.py --config prefetchlenz/config/configs/sample_bingo.yml --log-file my_run.log
+  python run.py --config compact/config/configs/sample_bingo.yml --log-file my_run.log
 
   # Run sample Linear prefetcher
-  python run.py --config prefetchlenz/config/configs/sample_linear.yml
+  python run.py --config compact/config/configs/sample_linear.yml
 
   # Run sample SMS prefetcher
-  python run.py --config prefetchlenz/config/configs/sample_sms.yml
+  python run.py --config compact/config/configs/sample_sms.yml
 
   # Run sample GHB prefetcher
-  python run.py --config prefetchlenz/config/configs/sample_ghb.yml
+  python run.py --config compact/config/configs/sample_ghb.yml
 
   # Run sample LearnCluster (ML-based) prefetcher
-  python run.py --config prefetchlenz/config/configs/sample_learncluster.yml
+  python run.py --config compact/config/configs/sample_learncluster.yml
         """)
 
     parser.add_argument(
@@ -207,7 +207,7 @@ Examples:
 
     # Handle --template
     if args.template:
-        template_path = Path(__file__).parent / 'prefetchlenz' / 'config' / 'config_template.yml'
+        template_path = Path(__file__).parent / 'compact' / 'config' / 'config_template.yml'
         if template_path.exists():
             print(f"\n{'='*70}")
             print("Configuration Template")

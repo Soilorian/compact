@@ -1,5 +1,5 @@
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.correlation import (
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.correlation import (
     CorrelationPrefetcher,
     CorrelationTableEntry,
     PredictionWithConfidence,
@@ -126,7 +126,7 @@ def test_decay_without_replacement():
 
 def test_predictions_for_threshold_filtering():
     """Test that predictions_for filters by confidence threshold."""
-    from prefetchlenz.prefetchingalgorithm.impl.correlation import CorrelationTable
+    from compact.prefetchingalgorithm.impl.correlation import CorrelationTable
 
     entry = CorrelationTableEntry(trigger=500, predictions=[])
 

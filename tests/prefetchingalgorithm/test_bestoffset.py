@@ -1,5 +1,5 @@
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.bestoffset import BestOffsetPrefetcher
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.bestoffset import BestOffsetPrefetcher
 
 
 def test():
@@ -87,7 +87,7 @@ def test_offset_wraparound():
 
 def test_get_best_offset_no_qualifying():
     """Test get_best_offset when no offset exceeds bad_score."""
-    from prefetchlenz.prefetchingalgorithm.impl.bestoffset import OffsetList
+    from compact.prefetchingalgorithm.impl.bestoffset import OffsetList
 
     offset_list = OffsetList()
     offset_list.update_score(4, 0)  # Score of 0, below bad_score=1

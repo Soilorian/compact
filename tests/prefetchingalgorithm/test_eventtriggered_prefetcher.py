@@ -1,7 +1,7 @@
-from prefetchlenz.prefetchingalgorithm.access.eventtriggeredmemoryaccess import (
+from compact.prefetchingalgorithm.access.eventtriggeredmemoryaccess import (
     EventTriggeredMemoryAccess,
 )
-from prefetchlenz.prefetchingalgorithm.impl.eventtriggered import (
+from compact.prefetchingalgorithm.impl.eventtriggered import (
     EventTriggeredPrefetcher,
     FilterSpec,
 )

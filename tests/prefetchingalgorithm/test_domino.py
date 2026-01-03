@@ -2,7 +2,7 @@
 Deterministic pytest unit tests for DominoPrefetcher.
 
 These tests assume the MemoryAccess dataclass is available in:
-  prefetchlenz.prefetchingalgorithm.impl.types.MemoryAccess
+  compact.prefetchingalgorithm.impl.types.MemoryAccess
 
 Each test is designed to exercise a specific Domino behavior:
  - initialization, reset
@@ -14,14 +14,14 @@ Each test is designed to exercise a specific Domino behavior:
 
 import pytest
 
-from prefetchlenz.prefetchingalgorithm.impl.domino import (
+from compact.prefetchingalgorithm.impl.domino import (
     CONFIG,
     MHT1,
     MHT2,
     MRB,
     DominoPrefetcher,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Use small table sizes in tests for fast deterministic behavior
 TEST_CONFIG = {

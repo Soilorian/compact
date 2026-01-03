@@ -1,6 +1,6 @@
 from sympy import false
 
-from prefetchlenz.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
+from compact.prefetchingalgorithm.prefetchingalgorithm import PrefetchAlgorithm
 
 
 class DummyAlgo(PrefetchAlgorithm):

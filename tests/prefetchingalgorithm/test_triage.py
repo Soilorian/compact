@@ -1,6 +1,6 @@
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.triage import TriagePrefetcher
-from prefetchlenz.util.size import Size
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.triage import TriagePrefetcher
+from compact.util.size import Size
 
 
 def test_no_prefetch_before_training():

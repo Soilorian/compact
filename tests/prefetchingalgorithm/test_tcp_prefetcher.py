@@ -1,6 +1,6 @@
 # test_tcp_prefetcher.py
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.tcp import TCPPrefetchAlgorithm
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.tcp import TCPPrefetchAlgorithm
 
 LINE = 64
 

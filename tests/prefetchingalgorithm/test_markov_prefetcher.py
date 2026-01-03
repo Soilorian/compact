@@ -1,7 +1,7 @@
 import logging
 
-from prefetchlenz.prefetchingalgorithm.impl.markovpredictor import MarkovPredictor
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.impl.markovpredictor import MarkovPredictor
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 logger = logging.getLogger("test.markov")
 

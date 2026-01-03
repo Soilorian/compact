@@ -1,5 +1,5 @@
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.ebcp import EbcpPrefetcher
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.ebcp import EbcpPrefetcher
 
 
 def make_access(addr: int):

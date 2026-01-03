@@ -1,5 +1,5 @@
-from prefetchlenz.prefetchingalgorithm.impl.triangel import *
-from prefetchlenz.util.size import Size
+from compact.prefetchingalgorithm.impl.triangel import *
+from compact.util.size import Size
 
 
 def make_access(addr: int, pc: int = 0) -> MemoryAccess:

@@ -1,7 +1,7 @@
 import pytest
 
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.perceptron import PerceptronPrefetcher
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.perceptron import PerceptronPrefetcher
 
 
 def test_basic_stride_predictions():

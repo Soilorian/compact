@@ -15,13 +15,13 @@ import numpy as np
 import pytest
 import torch
 
-from prefetchlenz.prefetchingalgorithm.impl.learncluster import (
+from compact.prefetchingalgorithm.impl.learncluster import (
     CONFIG,
     ClusterVocab,
     KMeans1D,
     LearnClusterPrefetcher,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # deterministic seeds for tests
 torch.manual_seed(CONFIG["PYTORCH_SEED"])
@@ -31,7 +31,7 @@ random.seed(CONFIG["RANDOM_SEED"])
 
 def build_tiny_model_state(max_vocab: int):
     """Build tiny model state with deterministic weights for testing."""
-    from prefetchlenz.prefetchingalgorithm.impl.learncluster import ClusterLSTMModel
+    from compact.prefetchingalgorithm.impl.learncluster import ClusterLSTMModel
 
     m = ClusterLSTMModel(
         num_clusters=CONFIG["NUM_CLUSTERS"],

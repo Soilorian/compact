@@ -1,4 +1,4 @@
-from prefetchlenz.prefetchingalgorithm.impl.linear import *
+from compact.prefetchingalgorithm.impl.linear import *
 
 
 def make_access(address, pc=0x10, loaded_value=None, is_cache_miss=False):

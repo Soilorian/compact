@@ -1,7 +1,7 @@
-from prefetchlenz.prefetchingalgorithm.access.feedbackdirectedmemoryaccess import (
+from compact.prefetchingalgorithm.access.feedbackdirectedmemoryaccess import (
     FeedbackDirectedMemoryAccess,
 )
-from prefetchlenz.prefetchingalgorithm.impl.feedbackdirected import (
+from compact.prefetchingalgorithm.impl.feedbackdirected import (
     FeedbackDirectedPrefetcher,
 )
 

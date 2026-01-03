@@ -1,7 +1,7 @@
-from prefetchlenz.analyzer.analyzer import Analyzer
-from prefetchlenz.dataloader.impl.ArrayDataLoader import ArrayLoader
-from prefetchlenz.prefetchingalgorithm.impl.referencepredictiontable import RptAlgorithm
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.analyzer.analyzer import Analyzer
+from compact.dataloader.impl.ArrayDataLoader import ArrayLoader
+from compact.prefetchingalgorithm.impl.referencepredictiontable import RptAlgorithm
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 
 def test_analyzer_counts_correct_and_incorrect(capfd):

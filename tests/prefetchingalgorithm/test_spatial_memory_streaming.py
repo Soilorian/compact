@@ -11,7 +11,7 @@ Each test validates a specific claim or mechanism from the SMS paper:
 
 import logging
 
-from prefetchlenz.prefetchingalgorithm.impl.sms import (
+from compact.prefetchingalgorithm.impl.sms import (
     BLOCK_SIZE,
     CONFIG,
     REGION_SIZE,
@@ -19,7 +19,7 @@ from prefetchlenz.prefetchingalgorithm.impl.sms import (
     SMSPrefetcher,
     region_base,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 logging.basicConfig(level=logging.ERROR)
 

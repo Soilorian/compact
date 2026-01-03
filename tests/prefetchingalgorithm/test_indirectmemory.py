@@ -16,7 +16,7 @@ Tests validate:
 
 import logging
 
-from prefetchlenz.prefetchingalgorithm.impl.indirectmemory import (
+from compact.prefetchingalgorithm.impl.indirectmemory import (
     CONFIG,
     IndirectMemoryPrefetcher,
     IndirectPatternDetectorEntry,
@@ -24,7 +24,7 @@ from prefetchlenz.prefetchingalgorithm.impl.indirectmemory import (
     PrefetchTableEntry,
     SaturatingCounter,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Set logging level for tests
 logging.basicConfig(level=logging.WARNING)

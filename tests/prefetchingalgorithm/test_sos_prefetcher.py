@@ -1,7 +1,7 @@
-from prefetchlenz.prefetchingalgorithm.access.storeorderedmemoryaccess import (
+from compact.prefetchingalgorithm.access.storeorderedmemoryaccess import (
     StoreOrderedMemoryAccess,
 )
-from prefetchlenz.prefetchingalgorithm.impl.storeorderedstreamer import (
+from compact.prefetchingalgorithm.impl.storeorderedstreamer import (
     StoreOrderedStreamer,
 )
 

@@ -16,7 +16,7 @@ import logging
 
 import pytest
 
-from prefetchlenz.prefetchingalgorithm.impl.bingo import (
+from compact.prefetchingalgorithm.impl.bingo import (
     BLOCK_SIZE,
     PATTERN_LEN,
     REGION_SIZE,
@@ -30,7 +30,7 @@ from prefetchlenz.prefetchingalgorithm.impl.bingo import (
     region_offset,
     rotate_pattern,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Set logging level for tests
 logging.basicConfig(level=logging.WARNING)
@@ -466,7 +466,7 @@ def test_bingo_prefetch_degree_limit():
     prefetches = p.progress(access, prefetch_hit=False)
 
     # Should be limited by PREFETCH_DEGREE
-    from prefetchlenz.prefetchingalgorithm.impl.bingo import CONFIG
+    from compact.prefetchingalgorithm.impl.bingo import CONFIG
     assert len(prefetches) <= CONFIG["PREFETCH_DEGREE"]
 
 

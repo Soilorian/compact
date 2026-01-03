@@ -1,5 +1,5 @@
-from prefetchlenz.dataloader.impl.ArrayDataLoader import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.referencepredictiontable import RptAlgorithm
+from compact.dataloader.impl.ArrayDataLoader import MemoryAccess
+from compact.prefetchingalgorithm.impl.referencepredictiontable import RptAlgorithm
 
 
 def test_rpt_initial_no_predict():

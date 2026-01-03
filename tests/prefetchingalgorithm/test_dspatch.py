@@ -17,7 +17,7 @@ Tests validate:
 
 import logging
 
-from prefetchlenz.prefetchingalgorithm.impl.dspatch import (
+from compact.prefetchingalgorithm.impl.dspatch import (
     CONFIG,
     DSPatchPrefetcher,
     PageBuffer,
@@ -32,7 +32,7 @@ from prefetchlenz.prefetchingalgorithm.impl.dspatch import (
     page_offset,
     region_in_page,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Set logging level for tests
 logging.basicConfig(level=logging.WARNING)

@@ -1,6 +1,6 @@
 # test_hierarchical_prefetcher.py
-from prefetchlenz.prefetchingalgorithm.impl.markovpredictor import MemoryAccess
-from prefetchlenz.prefetchingalgorithm.impl.neural import HierarchicalNeuralPrefetcher
+from compact.prefetchingalgorithm.impl.markovpredictor import MemoryAccess
+from compact.prefetchingalgorithm.impl.neural import HierarchicalNeuralPrefetcher
 
 
 def test_simple_sequence_learns_prediction():

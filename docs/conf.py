@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "prefetchlenz"
+project = "compact"
 copyright = "2025, Mahdi Ali nejad"
 author = "Mahdi Ali nejad"
 release = "0.0.1"

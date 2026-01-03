@@ -17,13 +17,13 @@ import random
 import numpy as np
 import torch
 
-from prefetchlenz.prefetchingalgorithm.impl.learnprefetch import (
+from compact.prefetchingalgorithm.impl.learnprefetch import (
     CONFIG,
     DeltaLSTMModel,
     LearnPrefetcher,
     Vocab,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Force deterministic seeds in tests as well
 torch.manual_seed(CONFIG["PYTORCH_SEED"])

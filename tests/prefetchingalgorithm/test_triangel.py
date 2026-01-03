@@ -3,7 +3,7 @@ from collections import deque
 
 import pytest
 
-from prefetchlenz.prefetchingalgorithm.impl.triangel import (
+from compact.prefetchingalgorithm.impl.triangel import (
     HistorySampler,
     MetadataReuseBuffer,
     SecondChanceSampler,
@@ -11,8 +11,8 @@ from prefetchlenz.prefetchingalgorithm.impl.triangel import (
     TriangelMeta,
     TriangelPrefetcher,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
-from prefetchlenz.util.size import Size
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.util.size import Size
 
 
 def test_secondchancesampler_put_hit_and_age_out():

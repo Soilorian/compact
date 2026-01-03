@@ -1,11 +1,11 @@
-from prefetchlenz.prefetchingalgorithm.impl.hds import (
+from compact.prefetchingalgorithm.impl.hds import (
     DFSM,
     BurstyController,
     HdsPrefetcher,
     HotStream,
     StreamMiner,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 
 # Simple access stub to mimic MemoryAccess

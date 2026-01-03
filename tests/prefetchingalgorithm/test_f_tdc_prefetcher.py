@@ -1,9 +1,9 @@
 # file: tests/test_f_tdc_prefetcher.py
 import logging
 
-from prefetchlenz.cache.Cache import Cache
-from prefetchlenz.cache.replacementpolicy.impl.lru import LruReplacementPolicy
-from prefetchlenz.prefetchingalgorithm.impl.f_tdc_prefetcher import (
+from compact.cache.Cache import Cache
+from compact.cache.replacementpolicy.impl.lru import LruReplacementPolicy
+from compact.prefetchingalgorithm.impl.f_tdc_prefetcher import (
     BLOCK_SIZE,
     BLOCKS_PER_CHUNK,
     PAGE_SIZE,
@@ -11,10 +11,10 @@ from prefetchlenz.prefetchingalgorithm.impl.f_tdc_prefetcher import (
     FootprintEntry,
     FootprintPrefetcher,
 )
-from prefetchlenz.prefetchingalgorithm.memoryaccess import MemoryAccess
+from compact.prefetchingalgorithm.memoryaccess import MemoryAccess
 
 # Ensure logs don't swamp test output
-logging.getLogger("prefetchlenz.prefetchingalgorithm.f_tdc").setLevel(logging.INFO)
+logging.getLogger("compact.prefetchingalgorithm.f_tdc").setLevel(logging.INFO)
 
 
 def make_access(address: int):
