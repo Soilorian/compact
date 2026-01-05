@@ -13,9 +13,9 @@ authors:
     affiliation: '1,2'
 affiliations:
   - index: 1
-    name: Sharif University of Technology
+    name: Sharif University of Technology, Iran
   - index: 2
-    name: IPM Institute For Research In Fundamental Sciences
+    name: IPM Institute For Research In Fundamental Sciences, Iran
 date: 3 November 2025
 bibliography: paper.bib
 ---
@@ -31,63 +31,67 @@ As the performance gap between processors and main memory continues to grow, har
 
 # Implemented Algorithms
 
-The following prefetching algorithms are implemented in COMPACT. Brief descriptions are provided for each algorithm based on their original publications. The references for these algorithms are provided in the `paper.bib` file.
+The following prefetching algorithms are implemented in COMPACT. Brief descriptions are provided for each algorithm based on their original publications.
 
-- **Best-Offset Prefetcher** [@bestoffset]: Learns the optimal offset value for sequential prefetching by testing a predefined list of offsets. During a training phase, it evaluates each offset to detect recurring patterns (X, X+d) in recent memory accesses. Once training completes, the prefetcher uses the best-scoring offset to generate prefetches, dynamically adapting to varying program behaviors and access patterns.
-- **B-Fetch Prefetcher** [@bfetch]: Uses branch prediction information to direct data prefetching by maintaining a Branch Stream Table that maps branch program counters to stream descriptors. By leveraging branch prediction signals, it prefetches data along predicted instruction paths ahead of execution, reducing cache misses for branch-directed memory accesses.
-- **Correlation Prefetcher** [@correlation]: Learns address correlations from the memory access stream by tracking patterns where accessing address A is often followed by address B. When correlations are detected with sufficient confidence, it issues prefetches for the predicted addresses, effectively handling irregular access patterns through correlation-based prediction.
-- **Domino Prefetcher** [@domino]: A temporal data prefetcher that predicts future memory addresses based on miss sequences using two miss history tables. MHT1 tracks single-miss patterns while MHT2 tracks two-miss patterns, allowing the prefetcher to generate predictions by correlating recent miss sequences with historical patterns observed in the access stream.
-- **EBCP Prefetcher** [@ebcp]: An epoch-based correlation prefetcher that partitions the access stream into epochs defined by quiescence periods. It correlates the first miss of each epoch with the miss sequences of subsequent epochs, learning temporal relationships between epoch boundaries to prefetch data ahead of epoch transitions.
-- **Event-Triggered Prefetcher** [@eventtriggered]: An event-driven programmable prefetcher designed for irregular workloads. It uses configurable rules based on exponential weighted moving averages of metrics like stride, latency, and inter-arrival time to trigger prefetches, allowing customization for different workload characteristics.
-- **F-TDC Prefetcher** [@f_tdc_prefetcher]: Efficient footprint caching for tagless DRAM caches that tracks per-page reference patterns using compact footprint vectors. By maintaining historical reference information embedded in page table entries, it prefetches chunks within pages based on previously observed access patterns.
-- **Feedback-Directed Prefetcher** [@feedbackdirected]: Improves prefetcher performance and bandwidth efficiency by using feedback metrics to dynamically adjust prefetch aggressiveness. It monitors accuracy, lateness, and pollution metrics over sampling intervals and adaptively tunes prefetch parameters to optimize cache performance.
-- **GHB Prefetcher** [@ghb]: Uses a global history buffer to correlate memory access patterns across different program counters. By maintaining a circular buffer of all accesses linked through predecessor relationships, it identifies recurring address sequences and generates prefetches based on delta correlations learned from the global access history.
-- **Graph Prefetcher** [@graph]: Exploits data structure knowledge for graph workloads by tracking memory access patterns that correspond to graph traversal operations. It identifies graph edges and node relationships from the access stream and prefetches connected nodes ahead of traversal, optimized for irregular graph data structures.
-- **HDS Prefetcher** [@hds]: A dynamic hot data stream prefetcher that identifies frequently accessed data sequences through bursty profiling and builds deterministic finite state machines. It dynamically learns hot streams during profiling phases and uses these learned patterns to prefetch data during execution phases.
-- **IPCP Prefetcher** [@ipcp]: Instruction pointer classifier-based spatial prefetching that classifies program counters into constant stride, spatial signature, or complex patterns. It employs specialized sub-prefetchers for each classification, adapting its prefetching strategy based on the memory access pattern exhibited by each instruction pointer.
-- **LearnCluster Prefetcher** [@learncluster]: Combines k-means clustering with LSTM-based prediction to learn memory access patterns. It partitions the address space into clusters, builds per-cluster delta vocabularies, and uses a shared LSTM encoder to predict top-K address deltas within each cluster for prefetching.
-- **LearnPrefetch Prefetcher** [@learnprefetch]: Uses LSTM neural networks to learn memory access patterns from address delta sequences. By training on historical miss sequences, it predicts future address deltas and generates prefetch candidates, leveraging machine learning to capture complex temporal dependencies in memory access behavior.
-- **Linear Prefetcher** [@linear]: Linearizes irregular memory accesses to enable improved correlated prefetching. It transforms non-sequential access patterns into stream-like sequences using hardware-like stream buffers, making irregular accesses amenable to standard prefetching techniques.
-- **Markov Predictor Prefetcher** [@markovpredictor]: Employs Markov chain predictors to model memory access sequences with variable-order dependencies. It maintains transition probabilities between address states and generates prefetches based on the most likely successor addresses given recent access history.
-- **Metadata Prefetcher** [@metadata]: Efficient metadata management for irregular data prefetching that maintains per-PC correlation tables mapping trigger addresses to predicted targets. It tracks confidence counters for each correlation and issues prefetches when correlations exceed a threshold, optimizing storage through compact metadata representation.
-- **Neural Prefetcher** [@neural]: A hierarchical neural model for data prefetching that combines global and local prediction components. It uses a global LSTM to capture long-term patterns and per-PC linear models for localized predictions, creating a two-level hierarchy that adapts to both global and instruction-specific access patterns.
-- **Perceptron Prefetcher** [@perceptron]: Perceptron-based prefetch filtering that uses a linear classifier to decide which prefetch candidates to issue. It trains perceptron weights based on features extracted from the access stream and filters out low-confidence prefetches, improving prefetch accuracy by reducing ineffective prefetches.
-- **SMS Prefetcher** [@sms]: Spatial memory streaming that tracks per-region access patterns using an accumulation table and pattern history table. It builds spatial signatures for memory regions and prefetches blocks within regions based on previously observed access patterns, optimized for spatial locality.
+- **Markov Predictor Prefetcher** [@markovpredictor]: Represents addresses as states in a Markov chain and learns transition probabilities between states from historical access patterns. During execution, access to a state triggers prediction of the most likely successor states, and the corresponding addresses are prefetched.
+- **Correlation Prefetcher** [@correlation]: Uses a helper memory thread to observe sequences of cache misses and learn correlations between them. When a similar miss pattern is detected, it replays the correlated miss sequence to prefetch data ahead of demand.
+- **HDS Prefetcher** [@hds]: Identifies frequently accessed memory streams by profiling bursty access patterns and models these hot streams using deterministic finite state machines (DFSMs). During profiling, frequent access sequences are encoded in DFSMs, and at runtime the prefetcher follows DFSM states to predict and prefetch future accesses.
+- **TCP Prefetcher** [@tcp]: Correlates cache line tags rather than full memory addresses. It maintains a history of recently accessed cache line tags and predicts the next tag based on these correlations. By chaining predicted tags, it can prefetch subsequent cache lines ahead of the demand access.
+- **GHB Prefetcher** [@ghb]: Maintains a global history buffer of recent memory accesses and correlates address deltas across program counters. It predicts future addresses by detecting recurring delta patterns and issues prefetches accordingly.
 - **Store-Ordered Streamer Prefetcher** [@storeorderedstreamer]: Records per-producer store streams and uses consumer accesses to trigger prefetches along producer memory access sequences. When a consumer accesses a line that appears in a producer's stream, it prefetches subsequent lines from that producer's store sequence.
-- **TCP Prefetcher** [@tcp]: Tag correlating prefetcher that operates on cache line tags rather than full addresses. It learns correlations between consecutive line tags and predicts successor tags, supporting prediction chaining for multi-level prefetching and using per-PC context for improved accuracy.
-- **Temporal Memory Streaming Prefetcher** [@temporalmemorystreaming]: Records temporal memory access sequences in a circular miss order buffer and replays these sequences when matching addresses are encountered. It maintains a directory mapping addresses to sequence positions and prefetches subsequent addresses from recorded sequences.
-- **Triage Prefetcher** [@triage]: Temporal prefetching without off-chip metadata that learns address neighbor relationships through PC-localized training. It maintains an on-chip metadata cache with adaptive sizing based on prefetch effectiveness, tracking temporal correlations between consecutive addresses per program counter.
-- **Triangel Prefetcher** [@triangel]: A high-performance on-chip temporal prefetcher that combines pattern-based and neighbor-based prediction. It uses a training unit to discover address patterns and maintains Markov metadata to predict future accesses, optimizing for both accuracy and timeliness in temporal prefetching.
+- **SMS Prefetcher** [@sms]: Spatial memory streaming that tracks per-region access patterns using an accumulation table and pattern history table. It builds spatial signatures for memory regions and prefetches blocks within regions based on previously observed access patterns, optimized for spatial locality.
+- **EBCP Prefetcher** [@ebcp]: Partitions the access stream into epochs whose boundaries are defined by quiescence periods. It learns correlations between the first miss of an epoch and subsequent misses within that epoch, and, upon detecting a similar epoch trigger, replays the learned miss sequence to prefetch ahead of demand.
+- **Feedback-Directed Prefetcher** [@feedbackdirected]: Monitors feedback metrics such as prefetch accuracy, lateness, and cache pollution, and adjusts prefetch parameters (e.g., prefetch degree) over sampling intervals based on these metrics.
+- **Temporal Memory Streaming Prefetcher** [@temporalmemorystreaming]: Records instruction access sequences in a circular miss-order buffer. When an instruction is fetched, it checks the buffer for a matching address and, upon a match, prefetches subsequent instructions from the recorded sequence. A directory maps instruction addresses to sequence positions to support efficient sequence replay.
+- **Linear Prefetcher** [@linear]: Transforms irregular memory accesses into stream-like sequences by logically linearizing the access patterns. This mapping makes non-sequential accesses appear sequential, enabling conventional prefetching mechanisms to predict and prefetch the next address in the transformed stream.
+- **B-Fetch Prefetcher** [@bfetch]: Uses branch prediction information to direct data prefetching by maintaining a Branch Stream Table that maps branch program counters to stream descriptors. By leveraging branch prediction signals, it prefetches data along predicted instruction paths ahead of execution, reducing cache misses for branch-directed memory accesses.
+- **Indirect Memory Prefetcher** [@indirectmemory]: Targets indirect access patterns in which future addresses depend on previous load values. It learns correlations between index values and their corresponding target addresses and uses the learned index-to-target relationship to predict and prefetch future targets.
+- **Best-Offset Prefetcher** [@bestoffset]: Evaluates a predefined set of candidate address offsets and maintains a usefulness score for each candidate. Based on periodic evaluation, it selects the highest-scoring offset to generate prefetches and re-evaluates offsets to track changes in access behavior.
+- **F-TDC Prefetcher** [@f_tdc_prefetcher]: Learns page-level spatial access footprints using compact footprint vectors and predicts future accesses within a page by fetching cache blocks associated with a previously accessed page. This approach is particularly relevant for tagless DRAM cache designs.
+- **Graph Prefetcher** [@graph]: Uses programmer- or compiler-provided graph traversal semantics to guide prefetching. It identifies access patterns associated with traversal and prefetches connected nodes ahead of traversal.
+- **TEMPO Prefetcher** [@tempo]: Uses address translation activity as a trigger for prefetching by combining physical page mappings with cache-line offsets to predict future memory accesses. Prefetches are issued non-speculatively as part of the translation process.
+- **Domino Prefetcher** [@domino]: Uses two history tables to capture first-order and second-order correlations between cache misses. Predictions from these tables are chained to generate prefetches that reflect deeper temporal relationships in the miss stream.
+- **Event-Triggered Prefetcher** [@eventtriggered]: A programmable prefetcher that issues prefetches only when specified events are triggered based on runtime memory access characteristics (e.g., stride, latency, and timing). Event conditions are defined by the programmer or system and can be used to adapt prefetching behavior to workload characteristics.
+- **LearnCluster Prefetcher** [@hashemi2018]: Extends LearnPrefetch by clustering memory accesses using k-means clustering. Each cluster learns its own set of address deltas using a shared LSTM encoder, specializing prediction across clusters.
+- **LearnPrefetch Prefetcher** [@hashemi2018]: Uses an LSTM model to learn temporal dependencies from address delta sequences derived from cache misses. By training on historical miss sequences, it predicts future address deltas and generates prefetch candidates.
+- **Bingo Prefetcher** [@bingo]: Tracks access patterns within regions using bit-vector footprints and associates these footprints with trigger events. When a trigger matches a stored footprint, it issues prefetches for the cache blocks within the region indicated by the matched footprint.
+- **DSPatch Prefetcher** [@dspatch]: Maintains accuracy-biased and coverage-biased footprints for each spatial signature and selects between them based on observed behavior. Prefetches are issued by aligning the selected footprint with the region's trigger offset.
+- **Metadata Prefetcher** [@metadata]: Maintains per-program-counter metadata that correlates trigger addresses with predicted target addresses and associates confidence counters with each correlation. Prefetches are issued when confidence exceeds a threshold to reduce ineffective prefetches.
+- **Perceptron Prefetcher** [@perceptron]: Filters prefetch candidates using a perceptron classifier that evaluates features from the memory access stream. The perceptron is trained online using feedback from prior prefetch decisions, reinforcing high-confidence prefetches and suppressing low-confidence ones.
+- **Triage Prefetcher** [@triage]: Tracks temporal correlations between consecutive addresses using on-chip metadata. The metadata cache is adaptively sized based on observed prefetch effectiveness, and prefetches are issued when high-confidence temporal correlations are identified.
+- **IPCP Prefetcher** [@ipcp]: Instruction pointer classifier-based spatial prefetching that classifies program counters into constant stride, spatial signature, or complex patterns. It employs specialized sub-prefetchers for each classification, adapting its prefetching strategy based on the memory access pattern exhibited by each instruction pointer.
+- **Neural Prefetcher** [@neural]: Combines a global LSTM model for capturing long-range access patterns with per-program-counter linear models for localized instruction-specific behavior. Prefetches are generated from the combined global and localized predictions.
+- **Triangel Prefetcher** [@triangel]: Combines pattern-based prediction with neighbor-based prediction by learning recurring access patterns and maintaining Markov-style temporal metadata for neighboring address relationships. Prefetches are triggered using predictions derived from both mechanisms.
 
 # References
 
-- [@bfetch]
-- [@bingo]
-- [@correlation]
-- [@domino]
-- [@dspatch]
-- [@ebcp]
-- [@eventtriggered]
-- [@f_tdc_prefetcher]
-- [@feedbackdirected]
-- [@ghb]
-- [@graph]
-- [@hds]
-- [@indirectmemory]
-- [@ipcp]
-- [@learncluster]
-- [@learnprefetch]
-- [@linear]
 - [@markovpredictor]
-- [@metadata]
-- [@neural]
-- [@perceptron]
-- [@sms]
-- [@storeorderedstreamer]
+- [@correlation]
+- [@hds]
 - [@tcp]
-- [@tempo]
+- [@ghb]
+- [@storeorderedstreamer]
+- [@sms]
+- [@ebcp]
+- [@feedbackdirected]
 - [@temporalmemorystreaming]
+- [@linear]
+- [@bfetch]
+- [@indirectmemory]
+- [@bestoffset]
+- [@f_tdc_prefetcher]
+- [@graph]
+- [@tempo]
+- [@domino]
+- [@eventtriggered]
+- [@hashemi2018]
+- [@bingo]
+- [@dspatch]
+- [@metadata]
+- [@perceptron]
 - [@triage]
+- [@ipcp]
+- [@neural]
 - [@triangel]
 
 [^1]: These authors contributed equally to this work.
