@@ -617,4 +617,4 @@ Decades of research went into prefetching. We thank all researchers who publishe
 
 ---
 
-Last updated February 2025. Active development. Pull requests welcome.
+Last updated February 2026. Active development. Pull requests welcome.
